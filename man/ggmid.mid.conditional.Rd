@@ -3,7 +3,7 @@
 \name{ggmid.mid.conditional}
 \alias{ggmid.mid.conditional}
 \alias{autoplot.mid.conditional}
-\title{Plot ICE of MID Model with ggplot2 Package}
+\title{Plot MID Conditional Expectations with ggplot2}
 \usage{
 \method{ggmid}{mid.conditional}(
   object,
@@ -25,43 +25,58 @@
 \arguments{
 \item{object}{a "mid.conditional" object to be visualized.}
 
-\item{type}{a character string specifying the type of the plot. One of "iceplot" or "centered". If "centered", the ICE values of each observation are set to zero at the leftmost point of the varriable.}
+\item{type}{the plotting style. One of "iceplot" or "centered".}
 
-\item{theme}{a character string specifying the color theme or any item that can be used to define "color.theme" object.}
+\item{theme}{a character string or object defining the color theme. See \code{\link{color.theme}} for details.}
 
 \item{term}{an optional character string specifying an interaction term. If passed, the ICE curve for the specified term is plotted.}
 
-\item{var.alpha}{a name of the variable or an expression to be used to set \code{alpha}.}
+\item{var.alpha}{a variable name or expression to map to the alpha aesthetic.}
 
-\item{var.color}{a name of the variable or an expression to be used to set \code{colour}.}
+\item{var.color}{a variable name or expression to map to the color aesthetic.}
 
-\item{var.linetype}{a name of the variable or an expression to be used to set \code{linetype}.}
+\item{var.linetype}{a variable name or expression to map to the linetype aesthetic.}
 
-\item{var.linewidth}{a name of the variable or an expression to be used to set \code{linewidth}.}
+\item{var.linewidth}{a variable name or expression to map to the linewidth aesthetic.}
 
-\item{reference}{an integer specifying the index of the sample points to be used as reference point for the centered ICE plot. Default is \code{1}. If negative, the maximum value of the variable is used.}
+\item{reference}{an integer specifying the index of the sample points to use as the reference for centering the c-ICE plot.}
 
-\item{dots}{logical. If \code{TRUE}, the points representing the predictions for each observation are plotted.}
+\item{dots}{logical. If \code{TRUE}, points representing the actual predictions for each observation are plotted.}
 
 \item{sample}{an optional vector specifying the names of observations to be plotted.}
 
-\item{...}{optional parameters to be passed to the main layer.}
+\item{...}{optional parameters passed on to the main layer.}
 }
 \value{
 \code{ggmid.mid.conditional()} returns a "ggplot" object.
 }
 \description{
-For "mid.conditional" objects, \code{ggmid()} visualizes ICE curves of a MID model.
+For "mid.conditional" objects, \code{ggmid()} visualizes Individual Conditional Expectation (ICE) curves derived from a fitted MID model.
 }
 \details{
-The S3 method of \code{ggmid()} for "mid.conditional" objects creates a "ggplot" object that visualizes ICE curves of a fitted MID model using \code{geom_line()}.
+This is an S3 method for the \code{ggmid()} generic that produces ICE curves from a "mid.conditional" object.
+ICE plots are a model-agnostic tool for visualizing how a model's prediction for a single observation changes as one feature varies.
+This function plots one line for each observation in the data.
+
+The \code{type} argument controls the visualization style:
+The default, \code{type = "iceplot"}, plots the row ICE curves.
+The \code{type = "centered"} option creates the centered ICE (c-ICE) plot, where each curve is shifted so start at zero, which makes it easier to compare the slopes of the curves.
+
+The \code{var.color}, \code{var.alpha}, etc., arguments allow you to map aesthetics to other variables in your data using (possibly) unquoted expressions.
 }
 \examples{
 data(airquality, package = "datasets")
 library(midr)
 mid <- interpret(Ozone ~ .^2, airquality, lambda = 0.1)
 ice <- mid.conditional(mid, "Temp", data = airquality)
+
+# Create an ICE plot, coloring lines by 'Wind'
 ggmid(ice, var.color = "Wind")
+
+# Create a centered ICE plot, mapping color and linetype to other variables
 ggmid(ice, type = "centered", theme = "Purple-Yellow",
       var.color = factor(Month), var.linetype = Wind > 10)
+}
+\seealso{
+\code{\link{mid.conditional}}, \code{\link{ggmid}}, \code{\link{plot.mid.conditional}}
 }

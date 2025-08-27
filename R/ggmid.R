@@ -1,10 +1,18 @@
-#' Plot MID with ggplot2 Package
+#' Plot MID Component Functions with ggplot2
 #'
-#' For "mid" objects, \code{ggmid()} visualizes a MID component function using the ggplot2 package.
+#' @description
+#' \code{ggmid()} is an S3 generic function for creating various visualizations from MID-related objects using \strong{ggplot2}.
+#' For "mid" objects (i.e., fitted MID models), it visualizes a single component function specified by the \code{term} argument.
 #'
-#' The S3 method of \code{ggmid()} for "mid" objects creates a "ggplot" object that visualizes a MID component function.
-#' The main layer is drawn using \code{geom_line()} or \code{geom_path()} for a main effect of a quantitative variable, \code{geom_col()} for a main effect of a qualitative variable, and \code{geom_raster()} or \code{geom_rect()} for an interaction effect.
-#' For other methods of \code{ggmid()}, see \code{help(ggmid.mid.importance)}, \code{help(ggmid.mid.breakdown)} or \code{help(ggmid.mid.conditional)}.
+#' @details
+#' For "mid" objects, \code{ggmid()} creates a "ggplot" object that visualizes a component function of the fitted MID model.
+#'
+#' The \code{type} argument controls the visualization style.
+#' The default, \code{type = "effect"}, plots the component function itself.
+#' In this style, the plotting method is automatically selected based on the effect's type:
+#' a line plot for quantitative main effects; a bar plot for qualitative main effects; and a raster plot for interactions.
+#' The \code{type = "data"} option creates a scatter plot of \code{data}, colored by the values of the component function.
+#' The \code{type = "compound"} option combines both approaches, plotting the component function alongside the data points.
 #'
 #' @param object a "mid" object to be visualized.
 #' @examples
@@ -12,13 +20,23 @@
 #' set.seed(42)
 #' idx <- sample(nrow(diamonds), 1e4)
 #' mid <- interpret(price ~ (carat + cut + color + clarity)^2, diamonds[idx, ])
+#'
+#' # Plot a quantitative main effect
 #' ggmid(mid, "carat")
+#'
+#' # Plot a qualitative main effect
 #' ggmid(mid, "clarity")
-#' ggmid(mid, "carat:clarity", main.effects = TRUE)
-#' ggmid(mid, "clarity:color", type = "data", theme = "Mako", data = diamonds[idx, ])
-#' ggmid(mid, "carat:color", type = "compound", data = diamonds[idx, ])
+#'
+#' # Plot an interaction effect with data points and a raster layer
+#' ggmid(mid, "carat:clarity", type = "compound", data = diamonds[idx, ])
+#'
+#' # Use a different color theme
+#' ggmid(mid, "clarity:color", theme = "RdBu")
 #' @returns
 #' \code{ggmid.mid()} returns a "ggplot" object.
+#'
+#' @seealso \code{\link{interpret}}, \code{\link{ggmid.mid.importance}}, \code{\link{ggmid.mid.conditional}}, \code{\link{ggmid.mid.breakdown}}, \code{\link{plot.mid}}
+#'
 #' @export ggmid
 #'
 ggmid <- function(object, ...)
@@ -26,28 +44,35 @@ UseMethod("ggmid")
 
 
 #' @rdname ggmid
+#'
 #' @param term a character string specifying the component function to be plotted.
-#' @param type character string. The method for plotting the interaction effects.
-#' @param theme a character string specifying the color theme or any item that can be used to define "color.theme" object.
+#' @param type the plotting style. One of "effect", "data" or "compound".
+#' @param theme a character string or object defining the color theme. See \code{\link{color.theme}} for details.
 #' @param intercept logical. If \code{TRUE}, the intercept is added to the MID values.
-#' @param main.effects logical. If \code{TRUE}, the main effects are included in the interaction plot.
-#' @param jitter a numeric value specifying the amount of jitter for points.
-#' @param cells.count an integer or integer-valued vector of length two, specifying the number of cells for the raster type interaction plot.
-#' @param data a data.frame to be plotted with the corresponding MID values. If not passed, data is extracted from \code{parent.env()} based on the function call of the "mid" object.
-#' @param limits \code{NULL} or a numeric vector of length two specifying the limits of the plotting scale. \code{NA}s are replaced by the minimum and/or maximum MID values.
-#' @param ... optional parameters to be passed to the main layer.
+#' @param main.effects logical. If \code{TRUE}, main effects are included in the interaction plot.
+#' @param data a data frame to be plotted with the corresponding MID values. If not provided, data is automatically extracted based on the function call.
+#' @param limits a numeric vector of length two specifying the limits of the plotting scale. \code{NA} values are replaced by the minimum and/or maximum MID values.
+#' @param jitter a numeric value specifying the amount of jitter for the data points.
+#' @param resolution an integer or vector of two integers specifying the resolution of the raster plot for interactions.
+#' @param ... optional parameters passed to the main plotting layer.
+#'
 #' @importFrom rlang .data
+#'
 #' @exportS3Method midr::ggmid
 #'
 ggmid.mid <- function(
     object, term, type = c("effect", "data", "compound"), theme = NULL,
-    intercept = FALSE, main.effects = FALSE, data = NULL, jitter = .3,
-    cells.count = c(100L, 100L), limits = c(NA, NA), ...) {
+    intercept = FALSE, main.effects = FALSE, data = NULL, limits = c(NA, NA),
+    jitter = .3, resolution = c(100L, 100L), ...) {
   tags <- term.split(term)
   term <- term.check(term, object$terms, stop = TRUE)
   type <- match.arg(type)
   if (missing(theme) && length(tags) == 2L)
-    theme <- if(type == "data") "bluescale" else "midr"
+    theme <- if(type == "data") {
+      getOption("midr.sequential", "bluescale")
+    } else {
+      getOption("midr.diverging", "midr")
+    }
   theme <- color.theme(theme)
   use.theme <- inherits(theme, "color.theme")
   if (type == "data" || type == "compound") {
@@ -139,7 +164,7 @@ ggmid.mid <- function(
       use.raster <- encs[[1L]]$type == "linear" ||
         encs[[2L]]$type == "linear" || main.effects
       if (use.raster) {
-        ms <- cells.count
+        ms <- resolution
         if (length(ms) == 1L)
           ms <- c(ms, ms)
         xy <- list()
@@ -211,6 +236,7 @@ ggmid.mid <- function(
 }
 
 #' @rdname ggmid
+#'
 #' @exportS3Method ggplot2::autoplot
 #'
 autoplot.mid <- function(object, ...) {

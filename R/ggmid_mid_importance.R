@@ -1,39 +1,60 @@
-#' Plot MID Importance with ggplot2 Package
+#' Plot MID Importance with ggplot2
 #'
-#' For "mid.importance" objects, \code{ggmid()} visualizes the importance of MID component functions.
+#' @description
+#' For "mid.importance" objects, \code{ggmid()} visualizes the importance of component functions of the fitted MID model.
 #'
-#' The S3 method of \code{ggmid()} for "mid.importance" objects creates a "ggplot" object that visualizes the term importance of a fitted MID model.
-#' The main layer is drawn using \code{geom_col()}, \code{geom_tile()}, \code{geom_point()} or \code{geom_boxplot()}.
+#' @details
+#' This is an S3 method for the \code{ggmid()} generic that creates an importance plot from a "mid.importance" object, visualizing the average contribution of component functions to the fitted MID model.
+#'
+#' The \code{type} argument controls the visualization style.
+#' The default, \code{type = "barplot"}, creates a standard bar plot where the length of each bar represents the overall importance of the term.
+#' The \code{type = "dotchart"} option creates a dot plot, offering a clean alternative to the bar plot for visualizing term importance.
+#' The \code{type = "heatmap"} option creates a matrix-shaped heat map where the color of each cell represents the importance of the interaction between a pair of variables, or the main effect on the diagonal.
+#' The \code{type = "boxplot"} option creates a box plot where each box shows the distribution of a term's contributions across all observations, providing insight into the varibability of each term's effect.
 #'
 #' @param object a "mid.importance" object to be visualized.
-#' @param type a character string specifying the type of the plot. One of "barplot", "heatmap", "dotchart" or "boxplot".
-#' @param theme a character string specifying the color theme or any item that can be used to define "color.theme" object.
-#' @param max.bars an integer specifying the maximum number of bars in the barplot, boxplot and dotchart.
-#' @param ... optional parameters to be passed to the main layer.
+#' @param type the plotting style. One of "barplot", "dotchart", "heatmap", or "boxplot".
+#' @param theme a character string or object defining the color theme. See \code{\link{color.theme}} for details.
+#' @param max.terms the maximum number of terms to display in the bar, dot and box plots.
+#' @param ... optional parameters passed on to the main layer.
+#'
 #' @examples
 #' data(diamonds, package = "ggplot2")
 #' set.seed(42)
 #' idx <- sample(nrow(diamonds), 1e4)
 #' mid <- interpret(price ~ (carat + cut + color + clarity)^2, diamonds[idx, ])
 #' imp <- mid.importance(mid)
-#' ggmid(imp, theme = "Tableau 10")
+#'
+#' # Create a bar plot (default)
+#' ggmid(imp)
+#'
+#' # Create a dot chart
 #' ggmid(imp, type = "dotchart", theme = "Okabe-Ito", size = 3)
-#' ggmid(imp, type = "heatmap", theme = "Blues")
-#' ggmid(imp, type = "boxplot", theme = "Accent")
+#'
+#' # Create a heatmap
+#' ggmid(imp, type = "heatmap")
+#'
+#' # Create a boxplot to see the distribution of effects
+#' ggmid(imp, type = "boxplot")
 #' @returns
 #' \code{ggmid.mid.importance()} returns a "ggplot" object.
+#'
+#' @seealso \code{\link{mid.importance}}, \code{\link{ggmid}}, \code{\link{plot.mid.importance}}
+#'
 #' @exportS3Method midr::ggmid
 #'
 ggmid.mid.importance <- function(
     object, type = c("barplot", "dotchart", "heatmap", "boxplot"),
-    theme = NULL, max.bars = 30L, ...) {
+    theme = NULL, max.terms = 30L, ...) {
   type <- match.arg(type)
+  if (missing(theme))
+    theme <- getOption("midr.sequential", getOption("midr.qualitative", NULL))
   theme <- color.theme(theme)
   use.theme <- inherits(theme, "color.theme")
   # barplot and dotchart
   if (type == "barplot" || type == "dotchart") {
     imp <- object$importance
-    imp <- imp[1L:min(max.bars, nrow(imp), na.rm = TRUE), ]
+    imp <- imp[1L:min(max.terms, nrow(imp), na.rm = TRUE), ]
     pl <- ggplot2::ggplot(
       imp, ggplot2::aes(x = .data[["importance"]], y = .data[["term"]])
       ) + ggplot2::labs(y = NULL)
@@ -78,7 +99,7 @@ ggmid.mid.importance <- function(
     return(pl)
   } else if (type == "boxplot") {
     terms <- as.character(attr(object, "terms"))
-    terms <- terms[1L:min(max.bars, length(terms), na.rm = TRUE)]
+    terms <- terms[1L:min(max.terms, length(terms), na.rm = TRUE)]
     preds <- object$predictions[, terms]
     terms <- factor(terms, levels = rev(terms))
     box <- data.frame(mid = as.numeric(preds),
@@ -86,7 +107,7 @@ ggmid.mid.importance <- function(
     pl <- ggplot2::ggplot(box)
     if (use.theme) {
       imp <- object$importance$importance
-      imp <- imp[1L:min(max.bars, length(terms), na.rm = TRUE)]
+      imp <- imp[1L:min(max.terms, length(terms), na.rm = TRUE)]
       colors <- theme$palette(length(imp))
       pl <- pl + ggplot2::geom_boxplot(
         ggplot2::aes(x = .data[["mid"]], y = .data[["term"]]),

@@ -1,37 +1,56 @@
 #' Encoder for Quantitative Variables
 #'
-#' \code{numeric.encoder()} returns an encoder for a quantitative variable.
+#' @description
+#' \code{numeric.encoder()} creates an encoder function for a quantitative variable.
+#' This encoder can then be used to convert a numeric vector into a design matrix using either piecewise linear or one-hot interval encoding, which are core components for modeling effects in a MID model.
 #'
-#' \code{numeric.encoder()} selects sample points from the variable \code{x} and returns a list containing the \code{encode()} function to convert a vector into a dummy matrix.
-#' If \code{type} is \code{1}, \code{k} is considered the maximum number of knots, and the values between two knots are encoded as two decimals, reflecting the relative position to the knots.
-#' If \code{type} is \code{0}, \code{k} is considered the maximum number of intervals, and the values are converted using one-hot encoding on the intervals.
+#' @details
+#' The primary purpose of the encoder is to transform a single numeric variable into a design matrix for the MID model's linear system formulation.
+#' The output of the encoder depends on the \code{type} argument.
+#'
+#' When \code{type = 1}, the variable's effect is modeled as a piecewise linear function with \code{k} knots including both ends.
+#' For each value, the encoder finds the two nearest knots and assigns a weight to each, based on its relative position.
+#' This results in a design matrix where each row has at most two non-zero values that sum to \code{1}.
+#' This approach creates a smooth, continuous representation of the effect.
+#'
+#' When \code{type = 0}, the variable's effect is modeled as a step function by dividing its range into \code{k} intervals (bins).
+#' The encoder determines which interval each value falls into and assigns a \code{1} to the corresponding column in the design matrix, with all other columns being \code{0}.
+#' This results in a standard one-hot encoded matrix and creates a discrete, bin-based representation of the effect.
 #'
 #' @param x a numeric vector to be encoded.
-#' @param k an integer specifying the coarseness of the encoding. If not positive, all unique values of x are used as sample points.
-#' @param type an integer specifying the encoding method. If \code{1}, values are encoded to a \code{[0, 1]} scale based on linear interpolation of the knots. If \code{0}, values are encoded to \code{0} or \code{1} using ont-hot encoding on the intervals.
-#' @param encoding.digits an integer specifying the rounding digits for the encoding in case \code{type} is \code{1}.
-#' @param tag character string. The name of the variable.
-#' @param frame a "numeric.frame" object or a numeric vector that defines the sample points of the binning.
-#' @param weights optional. A numeric vector of sample weights for each value of \code{x}.
+#' @param k an integer specifying the coarseness of the encoding. If not positive, all unique values of \code{x} are used as knots or bins.
+#' @param type an integer (\code{1} or \code{0}) specifying the encoding method (see the "details" section).
+#' @param encoding.digits an integer specifying the rounding digits for the piecewise linear encoding (\code{type = 1}).
+#' @param tag the name of the variable.
+#' @param frame a "numeric.frame" object or a numeric vector that explicitly defines the knots or breakes for the encoding.
+#' @param weights an optional numeric vector of sample weights for \code{x}.
+#'
 #' @examples
+#' # Create an encoder for a quantitative variable
 #' data(iris, package = "datasets")
 #' enc <- numeric.encoder(x = iris$Sepal.Length, k = 5L, tag = "Sepal.Length")
-#' enc$frame
-#' enc$encode(x = c(4:8, NA))
+#' enc
 #'
-#' frm <- numeric.frame(breaks = seq(3, 9, 2), type = 0L)
+#' # Encode a numeric vector with NA and Inf
+#' enc$encode(x = c(4:8, NA, Inf))
+#'
+#' # Create an encoder with a pre-defined encoding frame
+#' frm <- numeric.frame(breaks = c(3, 5, 7, 9), type = 0L)
 #' enc <- numeric.encoder(x = iris$Sepal.Length, frame = frm)
-#' enc$encode(x = c(4:8, NA))
+#' enc$encode(x = c(4:8, NA, Inf))
 #'
-#' enc <- numeric.encoder(x = iris$Sepal.Length, frame = seq(3, 9, 2))
-#' enc$encode(x = c(4:8, NA))
+#' # Create an encoder with a numeric vector specifying the knots
+#' enc <- numeric.encoder(x = iris$Sepal.Length, frame = c(3, 5, 7, 9))
+#' enc$encode(x = c(4:8, NA, Inf))
 #' @returns
-#' \code{numeric.encoder()} returns a list containing the following components:
-#' \item{frame}{an object of class "numeric.frame".}
-#' \item{encode}{a function to encode \code{x} into a dummy matrix.}
-#' \item{n}{the number of encoding levels.}
-#' \item{type}{the type of encoding, "linear" or "constant".}
-#' \code{numeric.frame()} returns a "numeric.frame" object containing the encoding information.
+#' \code{numeric.encoder()} returns an object of class "encoder". This is a list containing the following components:
+#' \item{frame}{a "numeric.frame" object containing the encoding information.}
+#' \item{encode}{a function to convert a numeric vector \code{x} into a dummy matrix.}
+#' \item{n}{the number of encoding levels (i.e., columns in the design matrix).}
+#' \item{type}{a character string describing the encoding type: "linear", "constant", or "null".}
+#'
+#' @seealso \code{\link{factor.encoder}}
+#'
 #' @export numeric.encoder
 #'
 numeric.encoder <- function(
@@ -107,23 +126,18 @@ numeric.encoder <- function(
       n <- length(x)
       mat <- matrix(0, nrow = n, ncol = n.rep)
       itv <- findInterval(x, reps)
-      for (i in seq_len(n)) {
-        if (is.na(itv[i]))
-          next
-        if (itv[i] == 0L) {
-          mat[i, 1L] <- 1
-        } else if (itv[i] == n.rep) {
-          mat[i, n.rep] <- 1
-        } else {
-          l <- reps[itv[i]]
-          r <- reps[itv[i] + 1L]
-          prop <- (r - x[i]) / (r - l)
-          if (!is.null(encoding.digits))
-            prop <- round(prop, digits = encoding.digits)
-          mat[i, itv[i]] <- prop
-          mat[i, itv[i] + 1L] <- 1 - prop
-        }
+      mat[itv == 0, 1L] <- 1
+      mat[itv == n.rep, n.rep] <- 1
+      ok <- (!is.na(x) & itv > 0 & itv < n.rep)
+      l <- reps[itv[ok]]
+      r <- reps[itv[ok] + 1L]
+      prop <- (r - x[ok]) / (r - l)
+      if (!is.null(encoding.digits)) {
+        rounder <- 10 ^ encoding.digits
+        prop <- floor(prop * rounder + .5) / rounder
       }
+      mat[cbind(which(ok), itv[ok])] <- prop
+      mat[cbind(which(ok), itv[ok] + 1L)] <- 1 - prop
       colnames(mat) <- format(reps, digits = 6L)
       mat
     }
@@ -132,11 +146,8 @@ numeric.encoder <- function(
       n <- length(x)
       mat <- matrix(0, nrow = n, ncol = n.rep)
       itv <- findInterval(x, br, all.inside = TRUE)
-      for (i in seq_len(n)) {
-        if (is.na(itv[i]))
-          next
-        mat[i, itv[i]] <- 1
-      }
+      ok <- !is.na(x)
+      mat[cbind(which(ok), itv[ok])] <- 1
       bs <- format(br, digits = 6L)
       bs[c(1L, length(bs))] <- c("-Inf", "Inf")
       colnames(mat) <- paste0("[", bs[1L:n.rep], ", ", bs[2L:(n.rep + 1L)], ")")
@@ -150,14 +161,25 @@ numeric.encoder <- function(
     }
   }
   type <- switch(type + 2L, "null", "constant", "linear")
+  environment(encode) <- rlang::env(
+    rlang::ns_env("midr"),
+    n.rep = n.rep, reps = reps, br = br, encoding.digits = encoding.digits
+  )
   enc <- list(frame = frame, encode = encode, n = n.rep, type = type)
   structure(enc, class = "encoder")
 }
 
 
 #' @rdname numeric.encoder
+#'
+#' @description
+#' \code{numeric.frame()} is a helper function to create a "numeric.frame" object that defines the encoding scheme.
+#'
 #' @param reps a numeric vector to be used as the representative values (knots).
 #' @param breaks a numeric vector to be used as the binning breaks.
+#'
+#' @returns
+#' \code{numeric.frame()} returns a "numeric.frame" object containing the encoding information.
 #'
 #' @export numeric.frame
 #'
@@ -183,7 +205,7 @@ numeric.frame <- function(reps = NULL, breaks = NULL, type = NULL,
   if (length(breaks) != n.rep + 1L)
     stop("the length of 'breaks' must be the length of 'reps' plus 1")
   frame <- data.frame(reps, breaks[1L:n.rep], breaks[2L:(n.rep + 1)])
-  ng <- c(frame[, 1L] <= frame[, 2L], frame[, 1L] > frame[, 3L])
+  ng <- c(frame[[1L]] <= frame[[2L]], frame[[1L]] > frame[[3L]])
   ng[1L] <- frame[1L, 1L] < frame[1L, 2L]
   if (any(ng))
     stop("representative values must be included in (min, max] of each bin")
@@ -194,9 +216,6 @@ numeric.frame <- function(reps = NULL, breaks = NULL, type = NULL,
 }
 
 
-#' @rdname numeric.encoder
-#' @param digits the minimum number of significant digits to be used.
-#' @param ... not used.
 #' @exportS3Method base::print
 #'
 print.encoder <- function(x, digits = NULL, ...) {

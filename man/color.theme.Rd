@@ -2,70 +2,100 @@
 % Please edit documentation in R/color_theme.R
 \name{color.theme}
 \alias{color.theme}
-\alias{plot.color.theme}
-\alias{print.color.theme}
 \title{Color Themes for Graphics}
 \usage{
 color.theme(
-  colors,
-  type = c("sequential", "qualitative", "diverging"),
+  object,
+  kernel.args = list(),
+  options = list(),
   name = NULL,
-  pkg = NULL,
+  source = NULL,
+  type = NULL,
+  reverse = FALSE,
+  env = color.theme.env(),
   ...
 )
-
-\method{plot}{color.theme}(x, n = NULL, text = x$name, ...)
-
-\method{print}{color.theme}(x, display = TRUE, ...)
 }
 \arguments{
-\item{colors}{one of the following: a color theme name such as "Viridis" with the optional suffix "_r" for color themes in reverse order ("Viridis_r"), a character vector of color names, a palette function, or a ramp function to be used to create a color theme.}
+\item{object}{a character string to retrieve a pre-defined theme, a color kernel (i.e., a vector of colors or a color generating function) to create a new theme, or a "color.theme" object to be modified. See the "Details" section.}
 
-\item{type}{a character string specifying the type of the color theme: One of "sequential", "qualitative" or "diverging".}
+\item{kernel.args}{a list of arguments to be passed to the color kernel.}
 
-\item{name}{an optional character string, specifying the name of the color theme.}
+\item{options}{a list of option values to control the color theme's behavior.}
 
-\item{pkg}{an optional character string, specifying the package in which the palette is to be searched for. Available options include "viridisLite", "RColorBrewer", "khroma", "grDevices" and "midr".}
+\item{name}{a character string for the color theme name.}
 
-\item{...}{optional arguments to be passed to palette or ramp functions.}
+\item{source}{a character string for the source name of the color theme.}
 
-\item{x}{a "color.theme" object to be displayed.}
+\item{type}{a character string specifying the type of the color theme. One of "sequential", "diverging", or "qualitative".}
 
-\item{n}{integer. the number of colors.}
+\item{reverse}{logical. If \code{TRUE}, the order of colors is reversed.}
 
-\item{text}{a character string to be displayed.}
+\item{env}{an environment where the color themes are registered.}
 
-\item{display}{logical. If \code{TRUE}, colors are displayed in the plot area.}
+\item{...}{optional named arguments used to modify the color theme. Any argument passed here will override the corresponding settings in \code{kernel.args} or \code{options}.}
+
+\item{kernel}{a color vector, a palette function, or a ramp function that serves as the basis for generating colors.}
 }
 \value{
-\code{color.theme()} returns a "color.theme" object containing following components:
-\item{ramp}{the function that takes a numeric vector \code{x} of the values within [0, 1] and returns a color name vector.}
-\item{palette}{the function that takes an integer \code{n} and returns a color name vector of length \code{n}.}
-\item{type}{the type of the color theme; "sequential", "diverging" or "qualitative".}
-\item{name}{the name of the color theme.}
+\code{color.theme()} returns a "color.theme" object, which is an environment with the special class attribute, containing the \code{...$palette()} and \code{...$ramp} functions, along with other metadata about the theme.
 }
 \description{
-\code{color.theme()} returns an object of class "color.theme" that provides two types of color functions.
+The \code{color.theme()} function is the main interface for working with "color.theme" objects. It acts as a dispatcher that, depending on the class of \code{object}, can retrieve a pre-defined theme by name (see the "Theme Name Syntax" section), create a new theme from a vector of colors or a color-generating function, and modify an existing "color.theme" object.
 }
 \details{
-"color.theme" objects is a container of the two types of color functions: \code{palette(n)} returns a color name vector of length \code{n}, and \code{ramp(x)} returns color names for each values of \code{x} within [0, 1].
-Some color themes are "qualitative" and do not contain \code{ramp()} function.
-The color palettes implemented in the following packages are available: \code{grDevices}, \code{viridisLite}, \code{RColorBrewer} and \code{khroma}.
+The "color.theme" object is a special environment that provides two color-generating functions: \code{...$palette()} and \code{...$ramp()}.
+
+\code{...$palette()} takes an integer \code{n} and returns a vector of \code{n} discrete colors. It is primarily intended for qualitative themes, where distinct colors are used to represent categorical data.
+
+\code{...$ramp()} takes a numeric vector \code{x} with values in the [0, 1] interval, and returns a vector of corresponding colors. It maps numeric values onto a continuous color gradient, making it suitable for sequential and diverging themes.
+
+This function, \code{color.theme()}, is a versatile dispatcher that behaves differently depending on the class of the \code{object} argument.
+If \code{object} is a character string (e.g., "Viridis", "grDevices/RdBu_r@q?alpha=.5"), the string is parsed according to the theme name syntax, and the corresponding pre-defined theme is loaded (see the "Theme Name Syntax" section for details).
+If \code{object} is a color kernel (i.e., a character vector of colors, a palette function, or a ramp function), a new color theme is created from the kernel.
+If \code{object} is a "color.theme" object, the function returns a modified version of the theme, applying any other arguments to update its settings.
 }
+\section{Theme Name Syntax}{
+
+When retrieving a theme using a character string, you can use a special syntax to specify the source and apply modifications:
+
+"\code{[(source)/](name)[_r][@(type)][?(query)]}"
+
+\itemize{
+  \item source: (optional) the source package or collection of the theme (e.g., "grDevices").
+  \item name: the name of the theme (e.g., "RdBu").
+  \item "_r": (optional) a suffix to reverse the color order.
+  \item type: (optional) the desired theme type, which will be matched with "sequential", "diverging" or "qualitative" (i.e., "s", "d", and "q" are sufficient, but longer character strings such as "seq", "div", "qual" are also possible).
+  \item query: (optional) a query string to overwrite the color theme's metadata including specific theme options or kernel arguments. Pairs are in \code{key=value} format and separated by \code{;} or \code{&} (e.g., "...?alpha=0.5;na.color='gray50'"). Possible keys include "name", "source", "type", "reverse" and any item of the theme's \code{options} and \code{kernel.args}.
+}
+}
+
 \examples{
+# Retrieve a pre-defined theme
 ct <- color.theme("Mako")
 ct$palette(5L)
-ct$ramp(seq.int(0, 1, 1/4))
-ct <- color.theme("RdBu")
+ct$ramp(seq.int(0, 1, length.out = 5))
+
+# Use special syntax to get a reversed, qualitative theme with alpha value
+ct <- color.theme("grDevices/Zissou 1_r@qual?alpha=0.75")
 ct$palette(5L)
-ct$ramp(seq.int(0, 1, 1/4))
-ct <- color.theme("Tableau 10")
-ct$palette(10L)
-pals <- c("midr", "grayscale", "bluescale", "shap", "DALEX")
-pals <- unique(c(pals, hcl.pals(), palette.pals()))
-pals <- lapply(pals, color.theme)
-old.par <- par(no.readonly = TRUE)
-par(mfrow = c(5L, 2L))
-for (pal in pals) plot(pal, text = paste(pal$name, "-", pal$type))
-par(old.par)
+ct$ramp(seq.int(0, 1, length.out = 5))
+
+# Create a new theme from a vector of colors
+ct <- color.theme(c("#003f5c", "#7a5195", "#ef5675", "#ffa600"))
+ct$palette(5L)
+ct$ramp(seq.int(0, 1, length.out = 5))
+
+# Create a new theme from a palette function
+ct <- color.theme(grDevices::rainbow)
+ct$palette(5L)
+ct$ramp(seq.int(0, 1, length.out = 5))
+
+# Modify an existing theme
+ct <- color.theme(ct, type = "qualitative", kernel.args = list(v = 0.5))
+ct$palette(5L)
+ct$ramp(seq.int(0, 1, length.out = 5))
+}
+\seealso{
+\code{\link{scale_color_theme}}, \code{\link{set.color.theme}}, \code{\link{color.theme.info}}
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/plot_mid.R
 \name{plot.mid}
 \alias{plot.mid}
-\title{Plot MID with graphics Package}
+\title{Plot MID Component Functions}
 \usage{
 \method{plot}{mid}(
   x,
@@ -12,9 +12,9 @@
   intercept = FALSE,
   main.effects = FALSE,
   data = NULL,
-  jitter = 0.3,
-  cells.count = c(100L, 100L),
   limits = NULL,
+  jitter = 0.3,
+  resolution = c(100L, 100L),
   ...
 )
 }
@@ -23,41 +23,58 @@
 
 \item{term}{a character string specifying the component function to be plotted.}
 
-\item{type}{character string.}
+\item{type}{the plotting style. One of "effect", "data" or "compound".}
 
-\item{theme}{a character vector of color names or a character string specifying the color theme.}
+\item{theme}{a character string or object defining the color theme. See \code{\link{color.theme}} for details.}
 
-\item{intercept}{logical. If \code{TRUE}, the intercept is added to the MID values and the plotting scale is shifted.}
+\item{intercept}{logical. If \code{TRUE}, the intercept is added to the MID values.}
 
-\item{main.effects}{logical. If \code{TRUE}, the main effects are included in the interaction plot.}
+\item{main.effects}{logical. If \code{TRUE}, main effects are included in the interaction plot.}
 
-\item{data}{a data.frame to be plotted with the corresponding MID values. If not passed, data is extracted from \code{parent.env()} based on the function call of the "mid" object.}
+\item{data}{a data frame to be plotted with the corresponding MID values. If not provided, data is automatically extracted from the function call.}
 
-\item{jitter}{a numeric value specifying the amount of jitter for points.}
+\item{limits}{a numeric vector of length two specifying the limits of the plotting scale.}
 
-\item{cells.count}{an integer or integer-valued vector of length two specifying the number of cells for the raster type interaction plot.}
+\item{jitter}{a numeric value specifying the amount of jitter for the data points.}
 
-\item{limits}{\code{NULL} or a numeric vector of length two specifying the limits of the plotting scale. \code{NA}s are replaced by the minimum and/or maximum MID values.}
+\item{resolution}{an integer or vector of two integers specifying the resolution of the raster plot for interactions.}
 
 \item{...}{optional parameters to be passed to the graphing function. Possible arguments are "col", "fill", "pch", "cex", "lty", "lwd" and aliases of them.}
 }
 \value{
-\code{plot.mid()} produces a line plot or bar plot for a main effect and a filled contour plot for an interaction and returns \code{NULL}.
+\code{plot.mid()} produces a plot as a side-effect and returns \code{NULL} invisibly.
 }
 \description{
-For "mid" objects, \code{plot()} visualizes a MID component function.
+For "mid" objects (i.e., fitted MID models), \code{plot()} visualizes a single component function specified by the \code{term} argument.
 }
 \details{
-The S3 method of \code{plot()} for "mid" objects creates a visualization of a MID component function using the functions of the graphics package.
+This is an S3 method for the \code{plot()} generic that produces a plot from a "mid" object, visualizing a component function of the fitted MID model.
+
+The \code{type} argument controls the visualization style.
+The default, \code{type = "effect"}, plots the component function itself.
+In this style, the plotting method is automatically selected based on the effect's type:
+a line plot for quantitative main effects; a bar plot for qualitative main effects; and a filled contour (level) plot for interactions.
+The \code{type = "data"} option creates a scatter plot of \code{data}, colored by the values of the component function.
+The \code{type = "compound"} option combines both approaches, plotting the component function alongside the data points.
 }
 \examples{
 data(diamonds, package = "ggplot2")
 set.seed(42)
 idx <- sample(nrow(diamonds), 1e4)
 mid <- interpret(price ~ (carat + cut + color + clarity)^2, diamonds[idx, ])
+
+# Plot a quantitative main effect
 plot(mid, "carat")
+
+# Plot a qualitative main effect
 plot(mid, "clarity")
-plot(mid, "carat:clarity", main.effects = TRUE)
-plot(mid, "clarity:color", type = "data", theme = "Mako", data = diamonds[idx, ])
-plot(mid, "carat:color", type = "compound", data = diamonds[idx, ])
+
+# Plot an interaction effect with data points and a raster layer
+plot(mid, "carat:clarity", type = "compound", data = diamonds[idx, ])
+
+# Use a different color theme
+plot(mid, "clarity:color", theme = "RdBu")
+}
+\seealso{
+\code{\link{interpret}}, \code{\link{ggmid}}
 }

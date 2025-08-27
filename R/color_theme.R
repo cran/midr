@@ -1,406 +1,442 @@
-is.color <- function(color, using.alpha = FALSE) {
-  if (!(is.character(color) || is.factor(color)))
-    return(FALSE)
-  e <- try(grDevices::col2rgb(as.character(color), alpha = TRUE), silent = TRUE)
-  if (inherits(e, "try-error"))
-    return(FALSE)
-  if (!using.alpha)
-    return(TRUE)
-  any(e[4L, ] != 255)
-}
-
-is.ramp <- function(ramp, x = seq.int(0, 1, .2)) {
-  if (length(ramp) != 1L || !is.function(ramp))
-    return(FALSE)
-  e <- try(ramp(x), silent = TRUE)
-  !inherits(e, "try-error") && length(e) == length(x) && is.color(e)
-}
-
-is.palette <- function(palette, n = 2L) {
-  if (length(palette) != 1L || !is.function(palette))
-    return(FALSE)
-  e <- try(palette(n), silent = TRUE)
-  !inherits(e, "try-error") && length(e) == n && is.color(e)
-}
-
-directed <- function(x, direction) {
-  if (direction == -1L) rev(x) else x
-}
-
-to.ramp <- function(colors = NULL, palette = NULL, type = NULL) {
-  if (isTRUE(type == "qualitative"))
-    return(NULL)
-  if (is.null(colors)) {
-    if (is.null(palette))
-      stop("'colors' or 'palette' must be supplied")
-    if (!is.palette(palette))
-      stop("invalid 'palette' supplied")
-    ptype <- attr(palette, "type")
-    if (isTRUE(ptype == "qualitative")) {
-      message("converting qualitative palette to sequential color ramp")
-      attr(palette, "type") <- "sequential"
-    }
-    colors <- palette(ifnot.null(attr(palette, "n"), 7L))
+#' Color Themes for Graphics
+#'
+#' @description
+#' The \code{color.theme()} function is the main interface for working with "color.theme" objects. It acts as a dispatcher that, depending on the class of \code{object}, can retrieve a pre-defined theme by name (see the "Theme Name Syntax" section), create a new theme from a vector of colors or a color-generating function, and modify an existing "color.theme" object.
+#'
+#' @details
+#' The "color.theme" object is a special environment that provides two color-generating functions: \code{...$palette()} and \code{...$ramp()}.
+#'
+#' \code{...$palette()} takes an integer \code{n} and returns a vector of \code{n} discrete colors. It is primarily intended for qualitative themes, where distinct colors are used to represent categorical data.
+#'
+#' \code{...$ramp()} takes a numeric vector \code{x} with values in the [0, 1] interval, and returns a vector of corresponding colors. It maps numeric values onto a continuous color gradient, making it suitable for sequential and diverging themes.
+#'
+#' This function, \code{color.theme()}, is a versatile dispatcher that behaves differently depending on the class of the \code{object} argument.
+#' If \code{object} is a character string (e.g., "Viridis", "grDevices/RdBu_r@q?alpha=.5"), the string is parsed according to the theme name syntax, and the corresponding pre-defined theme is loaded (see the "Theme Name Syntax" section for details).
+#' If \code{object} is a color kernel (i.e., a character vector of colors, a palette function, or a ramp function), a new color theme is created from the kernel.
+#' If \code{object} is a "color.theme" object, the function returns a modified version of the theme, applying any other arguments to update its settings.
+#'
+#' @section Theme Name Syntax:
+#' When retrieving a theme using a character string, you can use a special syntax to specify the source and apply modifications:
+#'
+#' "\code{[(source)/](name)[_r][@(type)][?(query)]}"
+#'
+#' \itemize{
+#'   \item source: (optional) the source package or collection of the theme (e.g., "grDevices").
+#'   \item name: the name of the theme (e.g., "RdBu").
+#'   \item "_r": (optional) a suffix to reverse the color order.
+#'   \item type: (optional) the desired theme type, which will be matched with "sequential", "diverging" or "qualitative" (i.e., "s", "d", and "q" are sufficient, but longer character strings such as "seq", "div", "qual" are also possible).
+#'   \item query: (optional) a query string to overwrite the color theme's metadata including specific theme options or kernel arguments. Pairs are in \code{key=value} format and separated by \code{;} or \code{&} (e.g., "...?alpha=0.5;na.color='gray50'"). Possible keys include "name", "source", "type", "reverse" and any item of the theme's \code{options} and \code{kernel.args}.
+#' }
+#'
+#' @param object a character string to retrieve a pre-defined theme, a color kernel (i.e., a vector of colors or a color generating function) to create a new theme, or a "color.theme" object to be modified. See the "Details" section.
+#' @param ... optional named arguments used to modify the color theme. Any argument passed here will override the corresponding settings in \code{kernel.args} or \code{options}.
+#' @param kernel a color vector, a palette function, or a ramp function that serves as the basis for generating colors.
+#' @param kernel.args a list of arguments to be passed to the color kernel.
+#' @param options a list of option values to control the color theme's behavior.
+#' @param name a character string for the color theme name.
+#' @param source a character string for the source name of the color theme.
+#' @param type a character string specifying the type of the color theme. One of "sequential", "diverging", or "qualitative".
+#' @param reverse logical. If \code{TRUE}, the order of colors is reversed.
+#' @param env an environment where the color themes are registered.
+#'
+#' @examples
+#' # Retrieve a pre-defined theme
+#' ct <- color.theme("Mako")
+#' ct$palette(5L)
+#' ct$ramp(seq.int(0, 1, length.out = 5))
+#'
+#' # Use special syntax to get a reversed, qualitative theme with alpha value
+#' ct <- color.theme("grDevices/Zissou 1_r@qual?alpha=0.75")
+#' ct$palette(5L)
+#' ct$ramp(seq.int(0, 1, length.out = 5))
+#'
+#' # Create a new theme from a vector of colors
+#' ct <- color.theme(c("#003f5c", "#7a5195", "#ef5675", "#ffa600"))
+#' ct$palette(5L)
+#' ct$ramp(seq.int(0, 1, length.out = 5))
+#'
+#' # Create a new theme from a palette function
+#' ct <- color.theme(grDevices::rainbow)
+#' ct$palette(5L)
+#' ct$ramp(seq.int(0, 1, length.out = 5))
+#'
+#' # Modify an existing theme
+#' ct <- color.theme(ct, type = "qualitative", kernel.args = list(v = 0.5))
+#' ct$palette(5L)
+#' ct$ramp(seq.int(0, 1, length.out = 5))
+#' @returns
+#' \code{color.theme()} returns a "color.theme" object, which is an environment with the special class attribute, containing the \code{...$palette()} and \code{...$ramp} functions, along with other metadata about the theme.
+#'
+#' @seealso \code{\link{scale_color_theme}}, \code{\link{set.color.theme}}, \code{\link{color.theme.info}}
+#'
+#' @export color.theme
+#'
+color.theme <- function(
+    object, kernel.args = list(), options = list(), name = NULL, source = NULL,
+    type = NULL, reverse = FALSE, env = color.theme.env(), ...
+) {
+  if (is.null(object)) {
+    NULL
+  } else if (is.color.theme(object)) {
+    if (nargs() == 1L)
+      return(object)
+    args <- as.list(object)
+    args <- args[c("kernel", "kernel.args", "options", "name", "source", "type")]
+    theme <- do.call(make.theme, args)
+    modify.theme(theme, kernel.args, options, name, source, type, reverse, ...)
+  } else if (is.kernel(object, args = kernel.args)) {
+    make.theme(object, kernel.args, options, name, source, type)
+  } else if (is.character(object) && length(object) == 1L) {
+    parsed <- try(parse.theme.name(object), silent = TRUE)
+    if (inherits(parsed, "try-error"))
+      stop(paste0(object, " can't be parsed"))
+    args <- get.theme(parsed$name, ifnot.null(parsed$source, source), env)
+    args <- list(theme = do.call(make.theme, args), kernel.args = kernel.args,
+                 options = options, name = name, source = source, type = type,
+                 reverse = reverse, ...)
+    for (item in names(parsed$args))
+      args[[item]] <- parsed$args[[item]]
+    do.call(modify.theme, args)
   } else {
-    if (!is.color(colors))
-      stop("invalid 'colors' supplied")
+    stop("'object' can't be converted to a color theme")
   }
-  names(colors) <- NULL
-  alpha <- is.color(colors, using.alpha = TRUE)
-  Ramp <- if (alpha) {
+}
+
+
+is.color <- function(x) {
+  if (!is.character(x))
+    return(FALSE)
+  e <- try(grDevices::col2rgb(x, alpha = TRUE), silent = TRUE)
+  !inherits(e, "try-error")
+}
+
+is.color.with.alpha <- function(x) {
+  if (!is.character(x))
+    return(FALSE)
+  e <- try(grDevices::col2rgb(x, alpha = TRUE), silent = TRUE)
+  !inherits(e, "try-error") && any(e[4L, ] != 255)
+}
+
+is.ramp <- function(fun, x.test = seq.int(0, 1, .2), args = list()) {
+  if (!is.numeric(x.test) || any(x.test < 0, 1 < x.test))
+    stop("'x.test' must be a numeric vector of values within [0, 1]")
+  if (length(fun) != 1L || !is.function(fun))
+    return(FALSE)
+  e <- try(do.call(fun, c(list(x.test), args)), silent = TRUE)
+  !inherits(e, "try-error") && length(e) == length(x.test) && is.color(e)
+}
+
+is.palette <- function(fun, n.test = 2L, args = list()) {
+  if (!is.numeric(n.test) || length(n.test) != 1L)
+    stop("'n.test' must be an integer")
+  if (length(fun) != 1L || !is.function(fun))
+    return(FALSE)
+  e <- try(do.call(fun, c(list(n.test), args)), silent = TRUE)
+  !inherits(e, "try-error") && length(e) == n.test && is.color(e)
+}
+
+is.color.theme <- function(object) {
+  inherits(object, "color.theme")
+}
+
+is.kernel <- function(object, args = list()) {
+  kernel.class(object, args = args) != "unknown"
+}
+
+kernel.class <- function(object, args = list()) {
+  if (is.palette(object, args = args))
+    "palette"
+  else if (is.ramp(object, args = args))
+    "ramp"
+  else if (is.color(object))
+    "color"
+  else if (is.null(object))
+    "null"
+  else
+    "unknown"
+}
+
+kernel.size <- function(object, args = list(), ok = 1L, ng = 256L) {
+  if (!is.kernel(object, args = args))
+    stop("'object' must be a palette function, ramp function or color vector")
+  if (is.ramp(object, args = args))
+    return(Inf)
+  if (is.null(object))
+    return(0L)
+  if (is.color(object))
+    return(length(object))
+  init.ng <- ng
+  while (abs(ok - ng) > 1) {
+    m <- (ok + ng) %/% 2
+    if (is.palette(object, n.test = m, args = args))
+      ok <- m
+    else
+      ng <- m
+  }
+  if (ng < init.ng) as.integer(ok) else Inf
+}
+
+lazy.load.kernel <- function(object, args = list()) {
+  if (is.kernel(object, args = args))
+    return(object)
+  if (!(is.character(object) || is.list(object)))
+    stop("'object' must be a kernel or a character vector/list specifying expression and namespace")
+  text <- object[[1L]]
+  namespace <- if (length(object) == 1L) "base" else object[[2L]]
+  object <- eval(str2expression(text), envir = rlang::ns_env(namespace))
+  if (!is.kernel(object, args = args))
+    stop("'object' can't be loaded as a valid kernel")
+  object
+}
+
+as.ramp <- function(colors) {
+  if (!is.color(colors))
+    stop("'colors' must be a character vector of color names")
+  .Ramp <- if (is.color.with.alpha(colors)) {
     grDevices::colorRamp(colors, alpha = TRUE)
   } else {
     grDevices::colorRamp(colors, space = "Lab")
   }
-  ramp <- function(x) {
-    if (length(x) == 0)
+  ramp <- function(x, direction = 1L, alpha = NULL, na.color = NA) {
+    if (length(x) == 0L)
       return(character())
-    colors <- character(length(x))
+    res <- character(length(x))
     eps <- .Machine$double.eps
     ng <- is.na(x) | x < (0 - eps) | (1 + eps) < x
-    colors[ng] <- NA
-    if (sum(ng) == length(x))
-      return(colors)
+    res[ng] <- na.color
+    if (all(ng)) return(res)
     x[!ng] <- pmin(1, pmax(0, x[!ng]))
-    m <- Ramp(x[!ng])
-    colors[!ng] <-
-      if (ncol(m) == 4L) {
-        grDevices::rgb(m[, 1L], m[, 2L], m[, 3L], m[, 4L], maxColorValue = 255)
-      } else {
-        grDevices::rgb(m[, 1L], m[, 2L], m[, 3L], maxColorValue = 255)
+    if (direction < 0) x[!ng] <- 1 - x[!ng]
+    args <- as.data.frame(.Ramp(x[!ng]))
+    if (!is.null(alpha)) args[[4L]] <- max(min(alpha, 1), 0) * 255
+    names(args) <- c("red", "green", "blue", "alpha")[seq_len(length(args))]
+    args$maxColorValue <- 255
+    res[!ng] <- do.call(grDevices::rgb, args)
+    res
+  }
+  environment(ramp) <- rlang::env(rlang::ns_env("midr"), .Ramp = .Ramp)
+  structure(ramp, class = c("function", "ramp"))
+}
+
+get.theme <- function(name, source = NULL, env = color.theme.env()) {
+  if (!exists(name, env))
+    stop(sprintf("'%s' is not found in the color theme environment", name))
+  if (is.null(source))
+    source <- utils::tail(names(env[[name]]), 1L)
+  args <- env[[name]][[source]]
+  if (is.null(args))
+    stop(sprintf("'%s#%s' is not found in the color theme environment",
+                 source, name))
+  args
+}
+
+parse.theme.name <- function(name) {
+  args <- new.env(parent = baseenv())
+  source <- NULL
+  # prefix: shortcut for source --------
+  pre <- sub("/.*", "", name)
+  if (pre != name) {
+    name <- sub(".*/", "", name)
+    source <- pre
+  }
+  # suffix: query --------
+  query <- sub(".*\\?", "", name)
+  if (query != name) {
+    name <- sub("\\?.*", "", name)
+    query <- unlist(strsplit(query, "&", fixed = TRUE))
+    eval(str2expression(query), envir = args, enclos = baseenv())
+  }
+  args <- as.list(args)
+  # suffix: shortcuts for type --------
+  suf <- sub(".*@", "", name)
+  if (suf != name) {
+    name <- sub("@.*", "", name)
+    args$type <- suf
+  }
+  # suffix: shortcut for reverse --------
+  if (grepl("_r$", name)) {
+    name <- sub("_r$", "", name)
+    args$reverse <- TRUE
+  }
+  list(name = name, source = source, args = args)
+}
+
+make.theme <- function(
+    kernel, kernel.args = list(), options = list(),
+    name = NULL, source = NULL, type = NULL
+) {
+  # environment --------
+  kernel <- lazy.load.kernel(kernel, args = kernel.args)
+  if (!is.list(kernel.args))
+    stop("'kernel.args' must be a list")
+  if (!is.list(options))
+    stop("'options' must be a list")
+  if (!is.null(name) && (!is.character(name) || length(name) != 1L))
+    stop("'name' must be a character string or NULL")
+  if (!is.null(source) && (!is.character(source) || length(source) != 1L))
+    stop("'source' must be a character string or NULL")
+  type <- match.arg(type, c("sequential", "diverging", "qualitative"))
+  kcl <- kernel.class(kernel, args = kernel.args)
+  if (kcl == "color") {
+    kernel.args$mode <- ifnot.null(
+      kernel.args$mode, switch(type, qualitative = "palette", "ramp")
+    )
+    kernel.args$alpha <- ifnot.null(kernel.args$alpha, NA)
+  }
+  options$kernel.size <- ifnot.null(options$kernel.size,
+                                    kernel.size(kernel, args = kernel.args))
+  options$palette.formatter <- ifnot.null(
+    options$palette.formatter,
+    switch(type, qualitative = "recycle", "interpolate")
+  )
+  options$palette.reverse <- ifnot.null(options$palette.reverse, FALSE)
+  options$ramp.rescaler <- ifnot.null(options$ramp.rescaler, c(0, 1))
+  options$na.color <- ifnot.null(options$na.color, NA)
+  options$reverse.method <- ifnot.null(options$reverse.method, NA)
+  env <- rlang::env(rlang::ns_env("midr"),
+                    kernel = kernel, kernel.args = kernel.args, options = options,
+                    name = name, source = source, type = type
+  )
+  # palette --------
+  env$palette <- function(n) {
+    if (!is.numeric(n) || length(n) != 1L)
+      stop("'n' must be an integer")
+    if ((n <- as.integer(n)) <= 0L)
+      return(character(0L))
+    nks <- min(n, options$kernel.size)
+    kcl <- kernel.class(kernel, args = kernel.args)
+    if (kcl == "palette") {
+      exec.args <- c(list(n = nks), kernel.args)
+      ret <- do.call(kernel, exec.args)
+    } else if (kcl == "ramp") {
+      exec.args <- c(list(x = seq.int(0, 1, length.out = n)), kernel.args)
+      ret <- do.call(kernel, exec.args)
+    } else if (kcl == "color") {
+      if (!is.null(kernel.args$alpha) && !is.na(kernel.args$alpha))
+        kernel <- grDevices::adjustcolor(kernel, alpha.f = kernel.args$alpha)
+      if (kernel.args$mode == "palette") {
+        ret <- kernel[seq_len(nks)]
+      } else if (kernel.args$mode == "ramp") {
+        mks <- min(256L, options$kernel.size)
+        ret <- as.ramp(kernel[seq_len(mks)])(x = seq.int(0, 1, length.out = n))
       }
-    colors
-  }
-  type <- ifnot.null(type, ifnot.null(attr(palette, "type"), "sequential"))
-  structure(ramp, type = type)
-}
-
-to.palette <- function(colors = NULL, ramp = NULL, type = NULL) {
-  if (isTRUE(type == "qualitative") && !is.null(colors)) {
-    if (!is.color(colors))
-      stop("invalid 'colors' supplied")
-    names(colors) <- NULL
-    n.colors <- length(colors)
-    palette <- function(n) {
-      stopifnot(length(n) == 1L, is.numeric(n), n > 0)
-      n <- as.integer(n)
-      if (n == 0L)
-        return(character())
-      colors[rep(seq_len(n.colors), length.out = n)]
-    }
-    return(structure(palette, type = type, n = n.colors))
-  }
-  if (is.null(ramp)) {
-    if (is.null(colors))
-      stop("'colors' or 'ramp' must be supplied")
-    ramp <- to.ramp(colors = colors, type = type)
-  } else {
-    if (!is.ramp(ramp))
-      stop("invalid 'ramp' supplied")
-  }
-  palette <- function(n) {
-    stopifnot(length(n) == 1L, is.numeric(n), n > 0)
-    n <- as.integer(n)
-    if (n == 0L)
-      return(character())
-    colors <- ramp(seq.int(0, 1, length.out = n))
-    colors
-  }
-  type <- ifnot.null(type, ifnot.null(attr(ramp, "type"), "sequential"))
-  structure(palette, type = type)
-}
-
-wrap.theme <- function(
-    type, palette = NULL, ramp = NULL, colors = NULL, name = NULL) {
-  if (is.null(type))
-    stop("'type' can not be NULL")
-  if (sum(is.null(palette), is.null(ramp), is.null(colors)) != 2L)
-    stop("invalid number of inputs are passed")
-  if (type == "qualitative") {
-    if (!is.null(colors)) {
-      palette <- to.palette(colors = colors, type = type)
-    } else if (!is.null(palette)) {
-      palette <- structure(palette, type = type)
-    } else if (!is.null(ramp)) {
-      palette <- structure(to.palette(ramp = ramp, type = type))
-      ramp <- NULL
-    }
-  } else {
-    if (!is.null(colors)) {
-      ramp <- to.ramp(colors = colors, type = type)
-      palette <- to.palette(ramp = ramp, type = type)
-    } else if (!is.null(palette)) {
-      palette <- structure(palette, type = type)
-      ramp <- to.ramp(palette = palette, type = type)
-    } else if (!is.null(ramp)) {
-      ramp <- structure(ramp, type = type)
-      palette <- to.palette(ramp = ramp, type = type)
-    }
-  }
-  theme <- list(type = type)
-  theme$palette <- palette
-  theme$ramp <- ramp
-  theme$name <- name
-  structure(theme, colors = colors, class = "color.theme")
-}
-
-#' Color Themes for Graphics
-#'
-#' \code{color.theme()} returns an object of class "color.theme" that provides two types of color functions.
-#'
-#' "color.theme" objects is a container of the two types of color functions: \code{palette(n)} returns a color name vector of length \code{n}, and \code{ramp(x)} returns color names for each values of \code{x} within [0, 1].
-#' Some color themes are "qualitative" and do not contain \code{ramp()} function.
-#' The color palettes implemented in the following packages are available: \code{grDevices}, \code{viridisLite}, \code{RColorBrewer} and \code{khroma}.
-#'
-#' @param colors one of the following: a color theme name such as "Viridis" with the optional suffix "_r" for color themes in reverse order ("Viridis_r"), a character vector of color names, a palette function, or a ramp function to be used to create a color theme.
-#' @param type a character string specifying the type of the color theme: One of "sequential", "qualitative" or "diverging".
-#' @param name an optional character string, specifying the name of the color theme.
-#' @param pkg an optional character string, specifying the package in which the palette is to be searched for. Available options include "viridisLite", "RColorBrewer", "khroma", "grDevices" and "midr".
-#' @param ... optional arguments to be passed to palette or ramp functions.
-#' @examples
-#' ct <- color.theme("Mako")
-#' ct$palette(5L)
-#' ct$ramp(seq.int(0, 1, 1/4))
-#' ct <- color.theme("RdBu")
-#' ct$palette(5L)
-#' ct$ramp(seq.int(0, 1, 1/4))
-#' ct <- color.theme("Tableau 10")
-#' ct$palette(10L)
-#' pals <- c("midr", "grayscale", "bluescale", "shap", "DALEX")
-#' pals <- unique(c(pals, hcl.pals(), palette.pals()))
-#' pals <- lapply(pals, color.theme)
-#' old.par <- par(no.readonly = TRUE)
-#' par(mfrow = c(5L, 2L))
-#' for (pal in pals) plot(pal, text = paste(pal$name, "-", pal$type))
-#' par(old.par)
-#' @returns
-#' \code{color.theme()} returns a "color.theme" object containing following components:
-#' \item{ramp}{the function that takes a numeric vector \code{x} of the values within [0, 1] and returns a color name vector.}
-#' \item{palette}{the function that takes an integer \code{n} and returns a color name vector of length \code{n}.}
-#' \item{type}{the type of the color theme; "sequential", "diverging" or "qualitative".}
-#' \item{name}{the name of the color theme.}
-#' @export color.theme
-#'
-color.theme <- function(
-    colors, type = c("sequential", "qualitative", "diverging"),
-    name = NULL, pkg = NULL, ...) {
-  if (is.null(colors))
-    return(NULL)
-  if (inherits(colors, "color.theme"))
-    return(colors)
-  type <- if (missing(type)) NULL else match.arg(type)
-  if (!is.character(colors) && !is.function(colors))
-    stop("'colors' must be a character vector or palette/ramp function")
-  if (length(colors) > 1L) {
-    type <- ifnot.null(type, "sequential")
-    return(wrap.theme(type, colors = colors, name = name))
-  }
-  if (is.palette(colors)) {
-    type <- ifnot.null(type, ifnot.null(attr(colors, "type"), "sequential"))
-    return(wrap.theme(type, palette = colors, name = name))
-  }
-  if (is.ramp(colors)) {
-    type <- ifnot.null(type, ifnot.null(attr(colors, "type"), "sequential"))
-    return(wrap.theme(type, ramp = colors, name = name))
-  }
-  if (grepl("_r", colors)) {
-    name <- sub("_r", "", colors)
-    d <- -1L
-  } else {
-    name <- colors
-    d <- 1L
-  }
-  if (is.null(pkg) || pkg == "midr") {
-    # diverging themes
-    f <- switch(
-      name,
-      "midr" = to.palette(directed(c("#005587", "#FFFFFF", "#8B0058"), d)),
-      NA
-    )
-    if (is.palette(f)) {
-      return(wrap.theme(ifnot.null(type, "diverging"), palette = f, name = name))
-    }
-    # sequential themes
-    f <- switch(
-      name,
-      "bluescale" = to.palette(directed(c("#132B43", "#56B1F7"), d)),
-      "grayscale" = to.palette(directed(c("white", "black"), d)),
-      "shap" = to.palette(directed(c("#2C87E1","#2A6BE9","#774DCF","#9C30BB","#C60099","#E7007E","#F72A5A"), d)),
-      NA
-    )
-    if (is.palette(f)) {
-      return(wrap.theme(ifnot.null(type, "sequential"), palette = f, name = name))
-    }
-    # qualitative themes
-    f <- switch(
-      name,
-      "DALEX" = directed(c("#4378bf","#8bdcbe", "#f05a71", "#ffa58c", "#ae2c87", "#46bac2", "#371ea3"), d),
-      NA
-    )
-    if (is.color(f)) {
-      return(wrap.theme(ifnot.null(type, "qualitative"), colors = f, name = name))
-    }
-  }
-  if (is.null(pkg) || pkg == "viridisLite") {
-    # sequential themes from viridisLite package
-    f <- switch(
-      name,
-      "cividis" = function(n) viridisLite::cividis(n, direction = d, ...),
-      "inferno" = function(n) viridisLite::inferno(n, direction = d, ...),
-      "magma" = function(n) viridisLite::magma(n, direction = d, ...),
-      "mako" = function(n) viridisLite::mako(n, direction = d, ...),
-      "plasma" = function(n) viridisLite::plasma(n, direction = d, ...),
-      "rocket" = function(n) viridisLite::rocket(n, direction = d, ...),
-      "turbo" = function(n) viridisLite::turbo(n, direction = d, ...),
-      "viridis" = function(n) viridisLite::viridis(n, direction = d, ...),
-      NA)
-    if (is.palette(f)) {
-      return(wrap.theme(ifnot.null(type, "sequential"), palette = f, name = name))
-    }
-  }
-  if (is.null(pkg) || pkg == "RColorBrewer") {
-    # diverging themes from RColorBrewer package
-    names <- c("BrBG", "PiYG", "PRGn", "PuOr", "RdBu", "RdGy", "RdYlBu", "RdYlGn", "Spectral")
-    f <- if (any(name == names)) {
-      try(directed(RColorBrewer::brewer.pal(11L, name), d), silent = TRUE)
-    } else NA
-    if (is.color(f)) {
-      return(wrap.theme(ifnot.null(type, "diverging"), colors = f, name = name))
-    }
-    # sequential themes from RColorBrewer package
-    names <- c("Blues", "BuGn", "BuPu", "GnBu", "Greens", "Greys", "Oranges",
-               "OrRd", "PuBu", "PuBuGn", "PuRd", "Purples", "RdPu", "Reds",
-               "YlGn", "YlGnBu", "YlOrBr", "YlOrRd")
-    f <- if (any(name == names)) {
-      try(directed(RColorBrewer::brewer.pal(9L, name), d), silent = TRUE)
-    } else NA
-    if (is.color(f)) {
-      return(wrap.theme(ifnot.null(type, "sequential"), colors = f, name = name))
-    }
-    # qualitative themes from RColorBrewer package
-    names <- c("Accent", "Dark2", "Paired", "Pastel1", "Pastel2", "Set1", "Set2", "Set3")
-    if (any(name == names)) {
-      npal <- switch(name, Paird = 12L, Pastel1 = 9L, Pastel2 = 8L, Set1 = 9L, 8L)
-      f <- try(directed(RColorBrewer::brewer.pal(npal, name), d), silent = TRUE)
     } else {
-      f <- NA
+      ret <- rep_len(NA, length.out = n)
     }
-    if (is.color(f)) {
-      return(wrap.theme(ifnot.null(type, "qualitative"), colors = f, name = name))
+    if (options$palette.reverse)
+      ret <- rev(ret)
+    if (length(ret) < n) {
+      if (options$palette.formatter == "recycle") {
+        ret <- rep_len(ret, length.out = n)
+      } else if (options$palette.formatter == "interpolate") {
+        ret <- as.ramp(ret)(x = seq.int(0, 1, length.out = n))
+      } else if (any(options$palette.formatter == c("fillna", "fill.na"))) {
+        ret <- ret[seq_len(n)]
+      } else {
+        stop("'n' must be equal to or smaller than the 'kernel.size' option")
+      }
     }
+    ret[is.na(ret)] <- options$na.color
+    ret
   }
-  if (is.null(pkg) || pkg == "khroma") {
-    # sequential themes from khroma package
-    names <- c(
-      "devon", "lajolla", "bamako", "davos", "bilbao", "nuuk", "oslo", "grayC",
-      "hawaii", "lapaz", "tokyo", "buda", "acton", "turku", "imola", "batlow",
-      "batlowW", "batlowK", "brocO", "corkO", "vikO", "romaO", "bamO", "YlOrBr",
-      "iridescent", "incandescent", "smoothrainbow"
-    )
-    if (any(name == names))
-      f <- try(khroma::colour(name, reverse = (d < 0), force = TRUE),
-               silent = TRUE)
-    else
-      f <- NA
-    if (is.palette(f)) {
-      return(wrap.theme(ifnot.null(type, "sequential"), palette = f, name = name))
+  environment(env$palette) <- env
+  # ramp --------
+  env$ramp <- function(x) {
+    if (!is.numeric(x))
+      stop("'x' must be a numeric vector")
+    eps <- .Machine$double.eps
+    ng <- is.na(x) | x < (0 - eps) | (1 + eps) < x
+    ret <- character(length(x))
+    ret[ng] <- NA
+    x[!ng] <- pmin(1, pmax(0, x[!ng]))
+    rsc <- ifnot.null(options$ramp.rescaler, c(0, 1))
+    if (!is.numeric(rsc) || length(rsc) != 2L)
+      stop("'ramp.rescaler' option must be a numeric vector of length 2")
+    x[!ng] <- x[!ng] * diff(rsc) + rsc[1L]
+    mks <- min(256L, options$kernel.size)
+    kcl <- kernel.class(kernel, args = kernel.args)
+    if (kcl == "palette") {
+      exec.args <- c(list(n = mks), kernel.args)
+      ret[!ng] <- as.ramp(do.call(kernel, exec.args))(x[!ng])
+    } else if (kcl == "ramp") {
+      exec.args <- c(list(x = x[!ng]), kernel.args)
+      ret[!ng] <- do.call(kernel, exec.args)
+    } else if (kcl == "color") {
+      if (!is.null(kernel.args$alpha) && !is.na(kernel.args$alpha))
+        kernel <- grDevices::adjustcolor(kernel, alpha.f = kernel.args$alpha)
+      ret[!ng] <- as.ramp(kernel[seq_len(mks)])(x[!ng])
+    } else {
+      ret[!ng] <- NA
     }
-    # diverging themes from khroma package
-    names <- c(
-      "broc", "cork", "vik", "lisbon", "tofino", "berlin", "roma", "bam",
-      "vanimo", "oleron", "bukavu", "fes", "sunset", "nightfall", "BuRd", "PRGn"
-    )
-    if (any(name == names))
-      f <- try(khroma::colour(name, reverse = (d < 0), force = TRUE),
-               silent = TRUE)
-    else
-      f <- NA
-    if (is.palette(f)) {
-      return(wrap.theme(ifnot.null(type, "diverging"), palette = f, name = name))
-    }
-    # qualitative themes from khroma package
-    names <- c(
-      "bright", "highcontrast", "vibrant", "muted", "mediumcontrast",
-      "pale", "dark", "light", "discreterainbow", "okabeito",
-      "okabeitoblack", "stratigraphy", "soil", "land"
-    )
-    if (any(name == names))
-      f <- try(khroma::colour(name, reverse = (d < 0), force = FALSE),
-               silent = TRUE)
-    else
-      f <- NA
-    if (is.palette(f)) {
-      attr(f, "n") <- attr(f, "max")
-      return(wrap.theme(ifnot.null(type, "qualitative"), palette = f, name = name))
-    }
+    ret[is.na(ret)] <- options$na.color
+    ret
   }
-  if (is.null(pkg) || pkg == "grDevices") {
-    # diverging themes from grDevices package
-    f <- if (any(name == grDevices::hcl.pals("diverging"))) {
-      function(n) grDevices::hcl.colors(n, name, rev = (d < 0), ...)
-    } else NA
-    if (is.palette(f)) {
-      return(wrap.theme(ifnot.null(type, "diverging"), palette = f, name = name))
-    }
-    # diverging themes from grDevices package
-    f <- if (any(name == grDevices::hcl.pals("divergingx"))) {
-      function(n) grDevices::hcl.colors(n, name, rev = (d < 0), ...)
-    } else NA
-    if (is.palette(f)) {
-      return(wrap.theme(ifnot.null(type, "diverging"), palette = f, name = name))
-    }
-    # sequential themes from grDevices package
-    f <- if (any(name == grDevices::hcl.pals("sequential"))) {
-      function(n) grDevices::hcl.colors(n, name, rev = (d < 0), ...)
-    } else NA
-    if (is.palette(f)) {
-      return(wrap.theme(ifnot.null(type, "sequential"), palette = f, name = name))
-    }
-    # qualitative themes from grDevices package (hcl.pals)
-    f <- if (any(name == grDevices::hcl.pals("qualitative"))) {
-      function(n) grDevices::hcl.colors(n, name, rev = (d < 0), ...)
-    } else NA
-    if (is.palette(f)) {
-      return(wrap.theme(ifnot.null(type, "qualitative"), palette = f, name = name))
-    }
-    # qualitative themes from grDevices package (palette.pals)
-    f <- switch(
-      name,
-      "R3" = directed(grDevices::palette.colors(8L, name), d),
-      "R4" = directed(grDevices::palette.colors(8L, name), d),
-      "ggplot2" = directed(grDevices::palette.colors(8L, name), d),
-      "Okabe-Ito" = directed(grDevices::palette.colors(8L, name), d),
-      "Accent" = directed(grDevices::palette.colors(8L, name), d),
-      "Dark 2" = directed(grDevices::palette.colors(8L, name), d),
-      "Paired" = directed(grDevices::palette.colors(12L, name), d),
-      "Pastel 1" = directed(grDevices::palette.colors(9L, name), d),
-      "Pastel 2" = directed(grDevices::palette.colors(8L, name), d),
-      "Set 1" = directed(grDevices::palette.colors(9L, name), d),
-      "Set 2" = directed(grDevices::palette.colors(8L, name), d),
-      "Set 3" = directed(grDevices::palette.colors(12L, name), d),
-      "Tableau 10" = directed(grDevices::palette.colors(10L, name), d),
-      "Classic Tableau" = directed(grDevices::palette.colors(10L, name), d),
-      "Polychrome 36" = directed(grDevices::palette.colors(36L, name), d),
-      "Alphabet" = directed(grDevices::palette.colors(26L, name), d),
-      NA)
-    if (is.color(f)) {
-      return(wrap.theme(ifnot.null(type, "qualitative"), colors = f, name = name))
-    }
-  }
-  stop(paste0("color theme '", colors, "' not found"))
+  environment(env$ramp) <- env
+  # return --------
+  structure(env, class = c("environment", "color.theme"))
 }
 
-#' @rdname color.theme
-#' @param x a "color.theme" object to be displayed.
-#' @param n integer. the number of colors.
-#' @param text a character string to be displayed.
+modify.theme <- function(
+    theme, kernel.args = NULL, options = NULL,
+    name = NULL, source = NULL, type = NULL, reverse = FALSE, ...
+) {
+  if (!is.color.theme(theme))
+    stop("'theme' must be a color theme")
+  if (!is.null(name))
+    theme$name <- name
+  if (!is.null(source))
+    theme$source <- source
+  if (!is.null(type)) {
+    type <- match.arg(type, c("sequential", "diverging", "qualitative"))
+    theme$type <- type
+  }
+  if (!is.null(kernel.args)) {
+    for (item in names(kernel.args)) {
+      theme$kernel.args[[item]] <- kernel.args[[item]]
+    }
+  }
+  if (!is.null(options)) {
+    for (item in names(options)) {
+      theme$options[[item]] <- options[[item]]
+    }
+  }
+  if (!is.null(dots <- list(...))) {
+    for (item in names(dots)) {
+      if (item %in% names(theme$kernel.args)) {
+        theme$kernel.args[[item]] <- dots[[item]]
+      } else if (item %in% names(theme$options)) {
+        theme$options[[item]] <- dots[[item]]
+      }
+    }
+  }
+  if (reverse) {
+    method <- theme$options$reverse.method
+    if (!is.null(method) && !is.na(method)) {
+      eval(str2expression(method), envir = theme, enclos = baseenv())
+    } else if (kernel.class(theme$kernel) == "color") {
+      theme$kernel <- rev(theme$kernel)
+    } else {
+      theme$options$palette.reverse <- !theme$options$palette.reverse
+      theme$options$ramp.rescaler <- rev(theme$options$ramp.rescaler)
+    }
+  }
+  theme
+}
+
 #' @exportS3Method base::plot
 #'
 plot.color.theme <- function(x, n = NULL, text = x$name, ...) {
-  if (is.null(n))
-    n <- if (x$type == "qualitative") {
-      ifnot.null(attr(x$palette, "n"), 8L)
-    } else 100L
+  if (!is.null(n)) {
+    colors <- x$palette(n)
+  } else {
+    if (x$type == "qualitative") {
+      n <- min(48L, x$options$kernel.size, na.rm = TRUE)
+      colors <- x$palette(n)
+    } else {
+      n <- 256L
+      colors <- x$ramp(seq.int(0, 1, length.out = n))
+    }
+  }
   opar <- graphics::par("mai", "mar")
   on.exit(graphics::par(opar))
   graphics::par(mar = c(1, 1, 1, 1))
@@ -408,12 +444,9 @@ plot.color.theme <- function(x, n = NULL, text = x$name, ...) {
                  axes = FALSE, xlab = "", ylab = "")
   graphics::text(0.5, 0.7, text, pos = 3L)
   graphics::rect((seq_len(n) - 1L) / n, 0.3, seq_len(n) / n, 0.7,
-                 col = x$palette(n), border = NA)
+                 col = colors, border = NA)
 }
 
-#' @rdname color.theme
-#' @param x a "color.theme" object to be displayed.
-#' @param display logical. If \code{TRUE}, colors are displayed in the plot area.
 #' @exportS3Method base::print
 #'
 print.color.theme <- function(x, display = TRUE, ...) {
@@ -422,85 +455,8 @@ print.color.theme <- function(x, display = TRUE, ...) {
   text <- paste0(type, " Color Theme")
   if (!is.null(x$name)) text <- paste0(text, ' : "', x$name, '" ')
   cat(text)
-  if (display)
-    plot.color.theme(x, text = text)
+  if (display) plot.color.theme(x, text = text)
 }
-
-
-
-#' Color Scales for ggplot2 Graphics based on Color Themes
-#'
-#' \code{scale_color_theme()} and family functions returns color scales for the "colour" and "fill" aesthetics of ggplot objects.
-#'
-#' @param theme one of the following: a color theme name such as "Viridis", a character vector of color names, a palette function, or a ramp function to be used to create a color theme.
-#' @param ... optional arguments to be passed to \code{ggplot2::continuous_scale()} or \code{ggplot2::discrete_scale()}.
-#' @param discrete logical. If \code{TRUE}, a discrete scale is returned.
-#' @param middle a numeric value specifying the middle point for the diverging color themes.
-#' @param aesthetics character string: "fill" or "color".
-#' @examples
-#' data(txhousing, package = "ggplot2")
-#' cities <- c("Houston", "Fort Worth", "San Antonio", "Dallas", "Austin")
-#' df <- subset(txhousing, city %in% cities)
-#' d <- ggplot2::ggplot(data = df, ggplot2::aes(x = sales, y = median)) +
-#'   ggplot2::geom_point(ggplot2::aes(colour = city))
-#' d + scale_color_theme("Set 1")
-#' d + scale_color_theme("R3")
-#' d + scale_color_theme("Blues", discrete = TRUE)
-#' d + scale_color_theme("SunsetDark", discrete = TRUE)
-#' data(faithfuld, package = "ggplot2")
-#' v <- ggplot2::ggplot(faithfuld) +
-#'   ggplot2::geom_tile(ggplot2::aes(waiting, eruptions, fill = density))
-#' v + scale_fill_theme("Plasma")
-#' v + scale_fill_theme("Spectral")
-#' v + scale_fill_theme("Spectral_r")
-#' v + scale_fill_theme("midr", middle = 0.017)
-#' @returns
-#' \code{scale_color_theme()} returns a "ScaleContinuous" or "ScaleDiscrete" object that can be added to a "ggplot" object.
-#' @export scale_color_theme
-#'
-scale_color_theme <- function(
-    theme, ..., discrete = NULL, middle = 0, aesthetics = "colour") {
-  theme <- color.theme(theme)
-  if (is.null(discrete))
-    discrete <- theme$type == "qualitative"
-  if (discrete) {
-    scale <- ggplot2::discrete_scale(
-      aesthetics, palette = theme$palette,
-      guide = "legend", ...)
-  } else {
-    if (theme$type == "qualitative")
-      stop("qualitative color theme can't be used for continuous scales")
-    rescale_fun <- if (theme$type == "sequential") {
-      scales::rescale
-    } else if (theme$type == "diverging") {
-      function(x, to = c(0, 1), from = range(x, na.rm = TRUE))
-        scales::rescale_mid(x, to, from, mid = middle)
-    }
-    scale <- ggplot2::continuous_scale(
-      aesthetics, palette = theme$ramp,
-      guide = "colorbar", rescaler = rescale_fun, ...)
-  }
-  scale
-}
-
-#' @rdname scale_color_theme
-#' @export scale_colour_theme
-#'
-scale_colour_theme <- function(
-    theme, ..., discrete = NULL, middle = 0, aesthetics = "colour") {
-  scale_color_theme(theme = theme, ..., discrete = discrete,
-                    middle = middle, aesthetics = aesthetics)
-}
-
-#' @rdname scale_color_theme
-#' @export scale_fill_theme
-#'
-scale_fill_theme <- function(
-    theme, ..., discrete = NULL, middle = 0, aesthetics = "fill") {
-  scale_color_theme(theme = theme, ..., discrete = discrete,
-                    middle = middle, aesthetics = aesthetics)
-}
-
 
 rescale <- function(x, middle = NULL) {
   if (is.character(x))
@@ -522,9 +478,10 @@ rescale <- function(x, middle = NULL) {
   pmax(0, pmin(1, res))
 }
 
-
-to.colors <- function(x, theme, middle = 0, na.value = "gray50") {
+to.colors <- function(x, theme, middle = 0, na.value = NULL) {
   theme <- color.theme(theme)
+  if (is.null(na.value))
+    na.value <- ifnot.null(theme$options$na.color, NA)
   if (is.discrete(x)) {
     x <- as.integer(as.factor(x))
     cols <- theme$palette(max(x, na.rm = TRUE))[x]
@@ -540,4 +497,15 @@ to.colors <- function(x, theme, middle = 0, na.value = "gray50") {
   }
   cols[is.na(cols)] <- na.value
   cols
+}
+
+hcl.palette <- function(
+    n, direction = 1L, alpha = NULL, chroma = 100, luminance = 65
+  ) {
+  if (n < 1L)
+    return(character(0L))
+  hues <- seq(0, 360, length.out = n + 1)[seq_len(n)] %% 360
+  if (direction < 0L)
+    hues <- rev(hues)
+  grDevices::hcl(h = hues, c = chroma, l = luminance, alpha = alpha)
 }

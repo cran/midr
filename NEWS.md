@@ -1,62 +1,62 @@
-## midr 0.5.0
+# midr 0.5.1
+
+# midr 0.5.0.909
+
+-   Vectorized the design matrix encoding process in `factor.encoder()` and `numeric.encoder()` for improved performance.
+-   Unified `weighted.rmse()` and its related functions into a single, more versatile `weighted.loss()` function.
+-   Updated and improved various help documents for clarity and completeness.
+-   Changed some argument names for consistency (e.g., changed `max.bars` to `max.terms`, `max.nrow` to `max.rows`, etc.).
+-   Deprecated `weighted()` and its family functions.
+-   Deprecated `mid.extract()` and `mid.frames()`.
+
+# midr 0.5.0.908
+
+-   Rewrote `color.theme()` to significantly enhance its functionality and flexibility.
+
+# midr 0.5.0.906
+
+-   Fixed a memory leak issue where `numeric.encoder()` and `factor.encoder()` held an unnecessary reference to the execution environment of `interpret.default()`.
+-   Updated the hex logo and favicons.
+
+# midr 0.5.0.905
+
+-   Rewrote `interpret.formula()` and `factor.encoder()` to correctly support `subset` and `drop.unused.levels` arguments.
+-   Updated `get.yhat()` methods to ensure prediction outputs always have the same length as the number of input observations.
+
+# midr 0.5.0.904
+
+-   Improved the computational efficiency of the parameter interpolation step in `interpret.default()`.
+
+# midr 0.5.0.903
+
+-   Fixed a bug in `interpret.default()` that caused inconsistency between "fitted.values" and "residuals".
+-   Fixed an issue in `mid.f()` (`mid.effect()`) to correctly handle vector recycling when an input's length is 1.
+-   Fixed `autoplot.mid.conditional()` to avoid redundant evaluation of the "mid" object.
+-   Updated the automatic determination method for the number of knots (`k`) in `interpret()`.
+-   Added support for type suffixes in `color.theme()` for easier theme specification.
+
+# midr 0.5.0.902
+
+-   Rewrote `interpret.formula()` to resolve environment issues related to `stats::model.frame()`
+-   Added new tests to cover this improved functionality.
+-   Refined the default diverging color theme "midr".
+
+# midr 0.5.0.901
+
+-   Corrected the "HCL" color theme to be properly categorized as a "qualitative" theme.
+-   Changed the rounding method used in numeric "encoder" objects.
+-   Updated the article and examples related to `color.theme()`.
+
+# midr 0.5.0.900
+
+-   Default color themes can now be set globally via R options: `midr.diverging`, `midr.qualitative` and `midr.sequential`.
+-   Added the "HCL" color theme and set it as the new default for "qualitative" theme.
+-   Fixed an issue in `interpret.formula()` to ensure the evaluated `formula` is correctly stored in the function call.
+
+# midr 0.5.0
 
 First release on CRAN.
 
-## midr 0.4.9.909
+# midr 0.4.9.909
 
--   Working paper is now available on arXiv.
--   Updates for final adjustments.
--   Some requirements for the 'x' argument are removed or relaxed.
-
-## midr 0.4.9.908
-
--   Fix small bugs including one reported in <https://github.com/ryo-asashi/midr/issues/5>.
--   Change the default values of `k` to avoid singular fits with smaller datasets.
-
-## midr 0.4.9.907
-
--   `interpret()` now includes a new `verbosity` argument for logging.
--   Fix small bugs.
-
-## midr 0.4.9.906
-
--   **Important:** Update the behavior of `get.yhat()` for classification tasks: If the model returns a matrix or data.frame of class probabilities, by default, `get.yhat()` returns the probability of *not* being the base level.
-
-## midr 0.4.9.900-0.4.9.905
-
--   `ggmid.mid.conditional()` and `plot.mid.conditional()` now include a new argument `reference`, which allows setting the reference point of c-ICE plot to any of the sample points.
--   `color.theme()` now includes a new argument, `pkg`, for package specification.
--   A new article about "color.theme" objects is added.
--   A small change of `print.mid()` and `print.mid.conditional()`.
--   **Important:** Update and chane the behavior of `interpret()` for classification tasks: If `y` is a factor or character, `interpret()` convert its base level to `0` and all other levels to `1`.
--   Modify `ggmid()` and `plot.mid()` to correct effect plots for factor variables with a `catchall` level. Additionallym `ggmid()` now utilize `ggplot2::geom_jitter()` and allow for adjustable jitter amounts with the `jitter` argument. Additionally, when data is not explicitly provided, it is now automatically extracted from the function call stored in the `"mid"` object.
--   Adjust `mid.conditional()` and `mid.breakdown()` so they no longer require explicit data input.
--   Update terminology.
--   The color palettes of the `khroma` package are now available for `color.theme()`.
--   The default theme for `ggmid(type = "data")` and `plot(type = "data")` is changed to a sequential color scheme: "bluescale".
--   Add link functions: `translogit`, `transprobit`, `identity-logistic` and `identity-gaussian` for the interpretation task of classification models.
--   `interpret()` now interactively confirms whether a singular fit or exceeding the maximum number of columns is an error.
-
-## midr 0.4.3-0.4.8.909
-
--   Add `mid.ur()` to extract uninterpreted ratio (rate) more conveniently.
--   Modify weighted loss functions to compute deviation-from-mean based losses for one input.
--   Modify `ggmid.mid.breakdown()` , `ggmid.mid.importance()` and `plot.mid.breakdown()` to improve usability of the functions.
--   Modify `interpret()` to add the `pred.args` argument that can be used to pass optional arguments to the prediction function (`pred.fun()`).
--   Add a draft of the article on "the interpretation of classification models".
--   Modify `interpret()` to allow matrices to be used as valid inputs for `data` (`interpret.formula()`) and `x` (`interpret.default()`).
--   Add an article on "the interpretation of regression models".
--   Define `print.encoder()` for "encoder" objects to improve usability of the fitted MID models.
--   Update README.
--   Change default values of some arguments: e.g. `na.action = na.pass` of `predict.mid()`.
--   Fix small bugs of `plot.mid.conditional()`.
--   Update `interpret()` to ensure that the value of the argument `link` is a character string.
--   Update `ggmid.mid.conditional()` and `plot.mid.conditional()`: `var.color` and the similar arguments can take an expression as input.
-
-## midr 0.4.3
-
-midr is in the release process. We will submit the package to CRAN by mid-January 2025 .
-
--   Improving usability of graphing functions.
--   Finalizing code and documentation.
--   Writing some vignettes. [Submitted to JARIP BULLETIN]
+-   The accompanying working paper is now available on arXiv.

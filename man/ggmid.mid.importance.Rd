@@ -3,13 +3,13 @@
 \name{ggmid.mid.importance}
 \alias{ggmid.mid.importance}
 \alias{autoplot.mid.importance}
-\title{Plot MID Importance with ggplot2 Package}
+\title{Plot MID Importance with ggplot2}
 \usage{
 \method{ggmid}{mid.importance}(
   object,
   type = c("barplot", "dotchart", "heatmap", "boxplot"),
   theme = NULL,
-  max.bars = 30L,
+  max.terms = 30L,
   ...
 )
 
@@ -18,23 +18,28 @@
 \arguments{
 \item{object}{a "mid.importance" object to be visualized.}
 
-\item{type}{a character string specifying the type of the plot. One of "barplot", "heatmap", "dotchart" or "boxplot".}
+\item{type}{the plotting style. One of "barplot", "dotchart", "heatmap", or "boxplot".}
 
-\item{theme}{a character string specifying the color theme or any item that can be used to define "color.theme" object.}
+\item{theme}{a character string or object defining the color theme. See \code{\link{color.theme}} for details.}
 
-\item{max.bars}{an integer specifying the maximum number of bars in the barplot, boxplot and dotchart.}
+\item{max.terms}{the maximum number of terms to display in the bar, dot and box plots.}
 
-\item{...}{optional parameters to be passed to the main layer.}
+\item{...}{optional parameters passed on to the main layer.}
 }
 \value{
 \code{ggmid.mid.importance()} returns a "ggplot" object.
 }
 \description{
-For "mid.importance" objects, \code{ggmid()} visualizes the importance of MID component functions.
+For "mid.importance" objects, \code{ggmid()} visualizes the importance of component functions of the fitted MID model.
 }
 \details{
-The S3 method of \code{ggmid()} for "mid.importance" objects creates a "ggplot" object that visualizes the term importance of a fitted MID model.
-The main layer is drawn using \code{geom_col()}, \code{geom_tile()}, \code{geom_point()} or \code{geom_boxplot()}.
+This is an S3 method for the \code{ggmid()} generic that creates an importance plot from a "mid.importance" object, visualizing the average contribution of component functions to the fitted MID model.
+
+The \code{type} argument controls the visualization style.
+The default, \code{type = "barplot"}, creates a standard bar plot where the length of each bar represents the overall importance of the term.
+The \code{type = "dotchart"} option creates a dot plot, offering a clean alternative to the bar plot for visualizing term importance.
+The \code{type = "heatmap"} option creates a matrix-shaped heat map where the color of each cell represents the importance of the interaction between a pair of variables, or the main effect on the diagonal.
+The \code{type = "boxplot"} option creates a box plot where each box shows the distribution of a term's contributions across all observations, providing insight into the varibability of each term's effect.
 }
 \examples{
 data(diamonds, package = "ggplot2")
@@ -42,8 +47,19 @@ set.seed(42)
 idx <- sample(nrow(diamonds), 1e4)
 mid <- interpret(price ~ (carat + cut + color + clarity)^2, diamonds[idx, ])
 imp <- mid.importance(mid)
-ggmid(imp, theme = "Tableau 10")
+
+# Create a bar plot (default)
+ggmid(imp)
+
+# Create a dot chart
 ggmid(imp, type = "dotchart", theme = "Okabe-Ito", size = 3)
-ggmid(imp, type = "heatmap", theme = "Blues")
-ggmid(imp, type = "boxplot", theme = "Accent")
+
+# Create a heatmap
+ggmid(imp, type = "heatmap")
+
+# Create a boxplot to see the distribution of effects
+ggmid(imp, type = "boxplot")
+}
+\seealso{
+\code{\link{mid.importance}}, \code{\link{ggmid}}, \code{\link{plot.mid.importance}}
 }

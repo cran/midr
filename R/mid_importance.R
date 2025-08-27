@@ -1,25 +1,38 @@
 #' Calculate MID Importance
 #'
+#' @description
 #' \code{mid.importance()} calculates the MID importance of a fitted MID model.
+#' This is a measure of feature importance that quantifies the average contribution of each component function across a dataset.
 #'
-#' \code{mid.importance()} returns an object of class "mid.importance".
-#' The MID importance is defined for each component function of a MID model as the mean absolute effect in the given \code{data}.
+#' @details
+#' The MID importance of a component function (e.g., a main effect or an interaction) is defined as the mean absolute effect on the predictions within the given data.
+#' Terms with higher importance have a larger average impact on the model's overall predictions.
 #'
 #' @param object a "mid" object.
-#' @param data a data frame containing the observations to be used to calculate the MID importance. If \code{NULL}, the \code{fitted.matrix} of the MID model is used.
+#' @param data a data frame containing the observations to calculate the importance. If \code{NULL}, the \code{fitted.matrix} from the "mid" object is used.
 #' @param weights an optional numeric vector of sample weights.
-#' @param sort logical. If \code{TRUE}, the output data frame is sorted by MID importance.
-#' @param measure an integer specifying the measure of the MID importance. Possible alternatives are \code{1} for the mean absolute effect, \code{2} for the root mean square effect, and \code{3} for the median absolute effect.
+#' @param sort logical. If \code{TRUE}, the output data frame is sorted by importance in descending order.
+#' @param measure an integer specifying the measure of importance. Possible alternatives are \code{1} for the mean absolute effect, \code{2} for the root mean square effect, and \code{3} for the median absolute effect.
+#'
 #' @examples
 #' data(airquality, package = "datasets")
-#' mid <- interpret(Ozone ~ .^2, airquality, lambda = 1)
+#' mid <- interpret(Ozone ~ .^2, data = airquality, lambda = 1)
+#'
+#' # Calculate MID importance using median absolute contribution
 #' imp <- mid.importance(mid)
-#' imp
+#' print(imp)
+#'
+#' # Calculate MID importance using root mean square contribution
+#' imp <- mid.importance(mid, measure = 2)
+#' print(imp)
 #' @returns
-#' \code{mid.importance()} returns an object of the class "mid.importance" containing the following components.
-#' \item{importance}{the data frame of calculated importances.}
+#' \code{mid.importance()} returns an object of class "mid.importance". This is a list containing the following components:
+#' \item{importance}{a data frame with the calculated importance values, sorted by default.}
 #' \item{predictions}{the matrix of the fitted or predicted MID values.}
-#' \item{measure}{the type of the importance measure.}
+#' \item{measure}{a character string describing the type of the importance measure used.}
+#'
+#' @seealso \code{\link{interpret}}, \code{\link{plot.mid.importance}}, \code{\link{ggmid.mid.importance}}
+#'
 #' @export mid.importance
 #'
 mid.importance <- function(
@@ -48,19 +61,15 @@ mid.importance <- function(
   out$importance <- df
   out$predictions <- preds
   out$measure <- switch(measure,
-                        "Mean Absolute Deviation",
-                        "Root Mean Square Deviation",
-                        "Median Absolute Deviation")
+                        "Mean Absolute Contribution",
+                        "Root Mean Square Contribution",
+                        "Median Absolute Contribution")
   attr(out, "terms") <- as.character(df$term)
   class(out) <- c("mid.importance")
   out
 }
 
 
-#' @rdname mid.importance
-#' @param x a "mid.importance" object to be printed.
-#' @param digits an integer specifying the minimum number of significant digits to be printed.
-#' @param ... additional parameters to be passed to \code{print.data.frame()} to print the importance of component functions.
 #' @exportS3Method base::print
 #'
 print.mid.importance <- function(

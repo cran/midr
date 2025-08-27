@@ -1,44 +1,68 @@
-#' Plot MID with graphics Package
+#' Plot MID Component Functions
 #'
-#' For "mid" objects, \code{plot()} visualizes a MID component function.
+#' @description
+#' For "mid" objects (i.e., fitted MID models), \code{plot()} visualizes a single component function specified by the \code{term} argument.
 #'
-#' The S3 method of \code{plot()} for "mid" objects creates a visualization of a MID component function using the functions of the graphics package.
+#' @details
+#' This is an S3 method for the \code{plot()} generic that produces a plot from a "mid" object, visualizing a component function of the fitted MID model.
+#'
+#' The \code{type} argument controls the visualization style.
+#' The default, \code{type = "effect"}, plots the component function itself.
+#' In this style, the plotting method is automatically selected based on the effect's type:
+#' a line plot for quantitative main effects; a bar plot for qualitative main effects; and a filled contour (level) plot for interactions.
+#' The \code{type = "data"} option creates a scatter plot of \code{data}, colored by the values of the component function.
+#' The \code{type = "compound"} option combines both approaches, plotting the component function alongside the data points.
 #'
 #' @param x a "mid" object to be visualized.
 #' @param term a character string specifying the component function to be plotted.
-#' @param type character string.
-#' @param theme a character vector of color names or a character string specifying the color theme.
-#' @param intercept logical. If \code{TRUE}, the intercept is added to the MID values and the plotting scale is shifted.
-#' @param main.effects logical. If \code{TRUE}, the main effects are included in the interaction plot.
-#' @param jitter a numeric value specifying the amount of jitter for points.
-#' @param cells.count an integer or integer-valued vector of length two specifying the number of cells for the raster type interaction plot.
-#' @param data a data.frame to be plotted with the corresponding MID values. If not passed, data is extracted from \code{parent.env()} based on the function call of the "mid" object.
-#' @param limits \code{NULL} or a numeric vector of length two specifying the limits of the plotting scale. \code{NA}s are replaced by the minimum and/or maximum MID values.
+#' @param type the plotting style. One of "effect", "data" or "compound".
+#' @param theme a character string or object defining the color theme. See \code{\link{color.theme}} for details.
+#' @param intercept logical. If \code{TRUE}, the intercept is added to the MID values.
+#' @param main.effects logical. If \code{TRUE}, main effects are included in the interaction plot.
+#' @param data a data frame to be plotted with the corresponding MID values. If not provided, data is automatically extracted from the function call.
+#' @param limits a numeric vector of length two specifying the limits of the plotting scale.
+#' @param jitter a numeric value specifying the amount of jitter for the data points.
+#' @param resolution an integer or vector of two integers specifying the resolution of the raster plot for interactions.
 #' @param ... optional parameters to be passed to the graphing function. Possible arguments are "col", "fill", "pch", "cex", "lty", "lwd" and aliases of them.
+#'
 #' @examples
 #' data(diamonds, package = "ggplot2")
 #' set.seed(42)
 #' idx <- sample(nrow(diamonds), 1e4)
 #' mid <- interpret(price ~ (carat + cut + color + clarity)^2, diamonds[idx, ])
+#'
+#' # Plot a quantitative main effect
 #' plot(mid, "carat")
+#'
+#' # Plot a qualitative main effect
 #' plot(mid, "clarity")
-#' plot(mid, "carat:clarity", main.effects = TRUE)
-#' plot(mid, "clarity:color", type = "data", theme = "Mako", data = diamonds[idx, ])
-#' plot(mid, "carat:color", type = "compound", data = diamonds[idx, ])
+#'
+#' # Plot an interaction effect with data points and a raster layer
+#' plot(mid, "carat:clarity", type = "compound", data = diamonds[idx, ])
+#'
+#' # Use a different color theme
+#' plot(mid, "clarity:color", theme = "RdBu")
 #' @returns
-#' \code{plot.mid()} produces a line plot or bar plot for a main effect and a filled contour plot for an interaction and returns \code{NULL}.
+#' \code{plot.mid()} produces a plot as a side-effect and returns \code{NULL} invisibly.
+#'
+#' @seealso \code{\link{interpret}}, \code{\link{ggmid}}
+#'
 #' @exportS3Method base::plot
 #'
 plot.mid <- function(
     x, term, type = c("effect", "data", "compound"), theme = NULL,
-    intercept = FALSE, main.effects = FALSE, data = NULL, jitter = .3,
-    cells.count = c(100L, 100L), limits = NULL, ...) {
+    intercept = FALSE, main.effects = FALSE, data = NULL, limits = NULL,
+    jitter = .3, resolution = c(100L, 100L), ...) {
   dots <- list(...)
   tags <- term.split(term)
   term <- term.check(term, x$terms, stop = TRUE)
   type <- match.arg(type)
   if (missing(theme) && length(tags) == 2L)
-    theme <- if(type == "data") "bluescale" else "midr"
+    theme <- if(type == "data") {
+      getOption("midr.sequential", "bluescale")
+    } else {
+      getOption("midr.diverging", "midr")
+    }
   theme <- color.theme(theme)
   use.theme <- inherits(theme, "color.theme")
   if (type == "data" || type == "compound") {
@@ -115,7 +139,7 @@ plot.mid <- function(
     }
   # interaction
   } else if (len == 2L) {
-    ms <- cells.count
+    ms <- resolution
     if (length(ms) == 1L)
       ms <- c(ms, ms)
     xy <- list(NULL, NULL)

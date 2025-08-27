@@ -51,6 +51,7 @@ library(ggplot2)
 library(gridExtra)
 library(ISLR2)
 library(ranger)
+library(shapviz)
 theme_set(theme_midr())
 # split the Boston dataset
 data("Boston", package = "ISLR2")
@@ -61,7 +62,7 @@ valid <- Boston[-idx, ]
 # fit a random forest model
 rf <- ranger(medv ~ ., train, mtry = 5)
 preds_rf <- predict(rf, valid)$predictions
-cat("RMSE: ", weighted.rmse(valid$medv, preds_rf))
+cat("RMSE: ", weighted.loss(valid$medv, preds_rf))
 #> RMSE:  3.351362
 ```
 
@@ -88,10 +89,10 @@ mid
 #> 
 #> Uninterpreted Variation Ratio: 0.016249
 preds_mid <- predict(mid, valid)
-cat("RMSE: ", weighted.rmse(preds_rf, preds_mid))
-#> RMSE:  1.106746
-cat("RMSE: ", weighted.rmse(valid$medv, preds_mid))
-#> RMSE:  3.306111
+cat("RMSE: ", weighted.loss(preds_rf, preds_mid))
+#> RMSE:  1.106763
+cat("RMSE: ", weighted.loss(valid$medv, preds_mid))
+#> RMSE:  3.306072
 ```
 
 To visualize the main and interaction effects of the variables, apply
@@ -106,7 +107,7 @@ grid.arrange(
     ggtitle("main effect of dis"),
   ggmid(mid, "lstat:dis") +
     ggtitle("interaction of lstat:dis"),
-  ggmid(mid, "lstat:dis", main.effects = TRUE, theme = "Temps") +
+  ggmid(mid, "lstat:dis", main.effects = TRUE, type = "compound") +
     ggtitle("interaction + main effects")
 )
 ```
@@ -127,7 +128,7 @@ and interaction effects.
 # visualize the MID importance of the component functions
 imp <- mid.importance(mid)
 grid.arrange(nrow = 1L,
-  ggmid(imp, "dotchart", theme = "Okabe-Ito") +
+  ggmid(imp, "dotchart", theme = "highlight") +
     theme(legend.position = "bottom") +
     ggtitle("importance of variable effects"),
   ggmid(imp, "heatmap") +
@@ -144,13 +145,13 @@ value into variable effects.
 
 ``` r
 # visualize the MID breakdown of the model predictions
-bd1 <- mid.breakdown(mid, data = train[1L, ])
-bd9 <- mid.breakdown(mid, data = train[9L, ])
+bd1 <- mid.breakdown(mid, data = train, row = 1L)
+bd9 <- mid.breakdown(mid, data = train, row = 9L)
 grid.arrange(nrow = 1L,
-  ggmid(bd1, "waterfall", theme = "Tableau 10", max.bars = 14L) +
+  ggmid(bd1, "waterfall", theme = "midr", max.terms = 14L) +
     theme(legend.position = "bottom") +
     ggtitle("breakdown of prediction 1"),
-  ggmid(bd9, "waterfall", theme = "Tableau 10", max.bars = 14L) +
+  ggmid(bd9, "waterfall", theme = "midr", max.terms = 14L) +
     theme(legend.position = "bottom") +
     ggtitle("breakdown of prediction 9")
 )
@@ -168,11 +169,11 @@ ice <- mid.conditional(mid, "lstat")
 grid.arrange(
   ggmid(ice, alpha = .1) +
     ggtitle("ICE of lstat"),
-  ggmid(ice, "centered", alpha = .1, var.color = dis > 3) +
+  ggmid(ice, "centered", "mako", var.color = dis) +
     ggtitle("c-ICE of lstat"),
-  ggmid(ice, term = "lstat:dis", var.color = dis > 3, alpha = .1) +
+  ggmid(ice, term = "lstat:dis", theme = "mako", var.color = dis) +
     ggtitle("ICE of interaction with dis"),
-  ggmid(ice, term = "lstat:age", var.color = age, dots = FALSE) +
+  ggmid(ice, term = "lstat:age", theme = "mako", var.color = age) +
     ggtitle("ICE of interaction with age")
 )
 ```
