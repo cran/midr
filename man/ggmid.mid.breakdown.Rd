@@ -10,7 +10,7 @@
   type = c("waterfall", "barplot", "dotchart"),
   theme = NULL,
   terms = NULL,
-  max.terms = 15L,
+  max.nterms = 15L,
   width = NULL,
   vline = TRUE,
   catchall = "others",
@@ -29,7 +29,7 @@
 
 \item{terms}{an optional character vector specifying which terms to display.}
 
-\item{max.terms}{the maximum number of terms to display in the plot. Less important terms will be grouped into a "catchall" category.}
+\item{max.nterms}{the maximum number of terms to display in the plot. Less important terms will be grouped into a "catchall" category.}
 
 \item{width}{a numeric value specifying the width of the bars.}
 
@@ -51,7 +51,7 @@ For "mid.breakdown" objects, \code{ggmid()} visualizes the breakdown of a predic
 This is an S3 method for the \code{ggmid()} generic that creates a breakdown plot from a "mid.breakdown" object, visualizing the contribution of each component function to a single prediction.
 
 The \code{type} argument controls the visualization style.
-The default, \code{type = "waterfall"} (default), creates a waterfall plot that shows how the prediction builds from the intercept, with each term's contribution sequentially added or subtracted.
+The default, \code{type = "waterfall"} (default), creates a waterfall plot that shows how the prediction is built up from the intercept, with each term's contribution sequentially added or subtracted.
 The \code{type = "barplot"} option creates a standard bar plot where the length of each bar represents the magnitude of the term's contribution.
 The \code{type = "dotchart"} option creates a dot plot showing the contribution of each term as a point connected to a zero baseline.
 }
