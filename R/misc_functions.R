@@ -25,8 +25,8 @@ term.check <- function(x, terms, stop = TRUE) {
     rx <- paste0(rev(term.split(x)), collapse = ":")
     if (!any(rx == terms)) {
       if (stop)
-        stop(paste0("term '", x, "' does not exist"))
-      message(paste0("term '", x, "' does not exist"))
+        stop("term '", x, "' does not exist")
+      message("term '", x, "' does not exist")
       return(NA)
     }
     return(rx)
@@ -34,15 +34,23 @@ term.check <- function(x, terms, stop = TRUE) {
   return(x)
 }
 
+make.formula <- function(xlabels, ylabel = NULL, env = parent.frame()) {
+  stats::as.formula(
+    paste(if (!is.null(ylabel)) ylabel, "~", paste(xlabels, collapse = "+")),
+    env = env
+  )
+}
+
 model.reframe <- function(object, data) {
-  if (!is.null(formula <- eval(object$call$formula))) {
+  if (!is.null(object$call$formula)) {
+    fm <- stats::formula(object)
     if (!is.data.frame(data) && !is.environment(data))
       data <- as.data.frame(data)
-    res <- try(stats::model.frame.default(formula, data, na.action = "na.pass"),
+    res <- try(stats::model.frame.default(fm, data, na.action = "na.pass"),
                silent = TRUE)
     if (inherits(res, "try-error")) {
-      formula[[2L]] <- NULL
-      res <- stats::model.frame.default(formula, data, na.action = "na.pass")
+      fm[[2L]] <- NULL
+      res <- stats::model.frame.default(fm, data, na.action = "na.pass")
     }
     return(res)
   }
@@ -73,7 +81,6 @@ model.data <- function(object, env = parent.frame()) {
   NULL
 }
 
-
 apply.catchall <- function(x, encoder) {
   catchall <- attr(encoder$frame, "catchall")
   if (!is.null(catchall)) {
@@ -82,7 +89,6 @@ apply.catchall <- function(x, encoder) {
   }
   x
 }
-
 
 adjusted.mai <- function(labels, margin = 1/16) {
   mai <- graphics::par("mai")
@@ -172,7 +178,6 @@ override <- function(args, dots,
   args
 }
 
-
 get.link <- function(link) {
   res <- switch(
     link,
@@ -200,7 +205,6 @@ get.link <- function(link) {
   res
 }
 
-
 verbose <- function(text, verbosity = 1L, level = 1L, timestamp = FALSE) {
   if (verbosity >= level) {
     ltag <- if (level >= 3L)
@@ -212,13 +216,11 @@ verbose <- function(text, verbosity = 1L, level = 1L, timestamp = FALSE) {
   }
 }
 
-
 examples <- function(x, n = 3L, ...) {
   dts <- if (length(x) > n) ", ..." else ""
   n <- min(length(x), n)
   paste0(paste(trimws(format(x[seq_len(n)]), ...), collapse = ", "), dts)
 }
-
 
 mid.frames <- function(object, ...) {
   mfl <- lapply(object$encoders[["main.effects"]], function(enc) enc$frame)
@@ -240,12 +242,18 @@ mid.frames <- function(object, ...) {
 #' @exportS3Method stats::formula
 #'
 formula.mid <- function(x, ...) {
-  x$call$formula
+  fm <- x$call$formula
+  if (!is.null(fm)) {
+    res <- stats::formula(stats::terms(x))
+    environment(res) <- environment(fm)
+    res
+  }
+  else stats::formula(stats::terms(x))
 }
+
 
 #' @exportS3Method stats::model.frame
 #'
 model.frame.mid <- function(object, ...) {
-  data <- model.data(object)
-  model.reframe(object, data)
+  model.reframe(object, data = model.data(object))
 }

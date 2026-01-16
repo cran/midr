@@ -37,12 +37,12 @@ mid.plots <- function(
   if (length(terms) == 0L)
     return(NULL)
   if (!is.null(max.nplots) && length(terms) > max.nplots) {
-    message("the number of terms exceeded the maximum number of plots")
+    message("number of terms exceeds 'max.nplots'")
     terms <- terms[1L:max.nplots]
   }
   true_terms <- terms
   for (i in seq_len(length(terms))) {
-    true_terms[i] <- term.check(terms[i], object$terms, stop = FALSE)
+    true_terms[i] <- term.check(terms[i], mid.terms(object), stop = FALSE)
   }
   terms <- terms[!is.na(true_terms)]
   true_terms <- true_terms[!is.na(true_terms)]

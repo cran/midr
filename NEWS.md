@@ -1,3 +1,63 @@
+# midr 0.5.3
+
+Fourth release on CRAN. This version introduces significant memory efficiency improvements for large-scale data analysis.
+
+### Major Improvements
+
+-   Optimized fitting process: Enhanced the space (and time) complexity when constructing large design matrices, especially for datasets with many observations.
+-   Memory-efficient estimation: Introduced the `save.memory` option in `interpret()`.
+-   Improved design matrix constraints: Replaced the `max.ncol` argument with `max.nelements` in `interpret()` to provide more intuitive control over the memory consumption of the design matrix.
+
+### Other Enhancements
+
+-   Memory-free prediction engine: Re-implemented the prediction logic to avoid storing massive term effect matrices, significantly reducing the memory usage of `interpret()` and `predict.mid()`.
+-   Flexible formatting: `plot.mid.breakdown()` and `ggmid.mid.breakdown()` now support `format.args` and enhanced `label.format` for better visualization control.
+-   CRAN compatibility: Updated various internal functions to ensure consistent behavior with the 'stats' package (especially with `stats::terms()`) and improved documentation clarity.
+
+# midr 0.5.2.907
+
+-   Updated `interpret()` to improve space and time complexity of constructing the design matrix.
+
+# midr 0.5.2.906
+
+-   The `format` argument in `mid.breakdown()` is deprecated.
+-   `plot.mid.breakdown()` and `ggmid.mid.breakdown()` now have a new argument `format.args`, which is passed to `base::format()` to format the predictor values stored in "mid.breakdown" objects.
+-   The `format` argument in `plot.mid.breakdown()` and `ggmid.mid.breakdown()` is renamed to `label.format`. The formatting strings now support more flexible formats, such as "%t=%v, %t=%v" for interactions.
+
+# midr 0.5.2.905
+
+-   Updated `ggmid.mid.importance()` and `plot.mid.importance()` to modify appearance of the plots when color themes are applied.
+
+# midr 0.5.2.904
+
+-   Memory-efficient `interpret()`: The model object no longer stores the massive `fitted.matrix` (the term-wise decomposition of the fitted values).
+-   Optimized `predict()` engine: Re-implemented the prediction logic using a matrix-free approach.
+-   On-demand Decomposition: Functions like `mid.importance()` now perform term-wise decomposition on-the-fly using the new optimized prediction engine.
+-   `mid.importance()` introduced a new argument `max.nkeeps` (default: 10,000). While importance scores are calculated using the full dataset for maximum accuracy, the function now optionally retains only a weighted random sample of the term-wise predictions.
+-   Standardized `predict` outputs: For `type = "terms"`, the intercept is now stored in the `constant` attribute of the returned matrix, aligning with standard R conventions (e.g., `predict.lm`).
+-   Removed the redundant `fitted.matrix` reference in `interpret.default` to prevent memory leaks during the estimation process.
+
+# midr 0.5.2.903
+
+-   `interpret.formula()` now supports unevaluated column names for the `weights` argument.
+
+# midr 0.5.2.902
+
+-   `weighted.loss()` supports the R-squared metrics by passing `method = "r2"`.
+
+# midr 0.5.2.901
+
+-   Enhanced plotting functions for "mid.importance" objects, allowing users to restrict which terms are displayed.
+-   Fixed a bug that occurred when a link function is used with a response variable containing `NA` values.
+
+# midr 0.5.2.900
+
+-   Updated functions to enhance consistency with the 'stats' package, especially with regard to the return value for the `stats::terms()` function.
+
+# midr 0.5.2
+
+Third release on CRAN.
+
 # midr 0.5.1.901
 
 -   Corrected typos and improved clarity in the documentation.

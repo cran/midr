@@ -4,23 +4,32 @@
 \alias{mid.importance}
 \title{Calculate MID Importance}
 \usage{
-mid.importance(object, data = NULL, weights = NULL, sort = TRUE, measure = 1L)
+mid.importance(
+  object,
+  data = NULL,
+  weights = NULL,
+  sort = TRUE,
+  measure = 1L,
+  max.nsamples = 10000L
+)
 }
 \arguments{
 \item{object}{a "mid" object.}
 
-\item{data}{a data frame containing the observations to calculate the importance. If \code{NULL}, the \code{fitted.matrix} from the "mid" object is used.}
+\item{data}{a data frame containing the observations to calculate the importance. If not provided, data is automatically extracted based on the function call.}
 
 \item{weights}{an optional numeric vector of sample weights.}
 
 \item{sort}{logical. If \code{TRUE}, the output data frame is sorted by importance in descending order.}
 
 \item{measure}{an integer specifying the measure of importance. Possible alternatives are \code{1} for the mean absolute effect, \code{2} for the root mean square effect, and \code{3} for the median absolute effect.}
+
+\item{max.nsamples}{an integer specifying the maximum number of samples to retain in the \code{predictions} component of the returned object. If the number of observations exceeds this value, a weighted random sample is taken.}
 }
 \value{
 \code{mid.importance()} returns an object of class "mid.importance". This is a list containing the following components:
 \item{importance}{a data frame with the calculated importance values, sorted by default.}
-\item{predictions}{the matrix of the fitted or predicted MID values.}
+\item{predictions}{the matrix of the fitted or predicted MID values. If the number of observations exceeds \code{max.nsamples}, this matrix contains a sampled subset.}
 \item{measure}{a character string describing the type of the importance measure used.}
 }
 \description{
@@ -36,7 +45,7 @@ data(airquality, package = "datasets")
 mid <- interpret(Ozone ~ .^2, data = airquality, lambda = 1)
 
 # Calculate MID importance using median absolute contribution
-imp <- mid.importance(mid)
+imp <- mid.importance(mid, data = airquality)
 print(imp)
 
 # Calculate MID importance using root mean square contribution

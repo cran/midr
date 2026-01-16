@@ -9,6 +9,7 @@
   object,
   type = c("barplot", "dotchart", "heatmap", "boxplot"),
   theme = NULL,
+  terms = NULL,
   max.nterms = 30L,
   ...
 )
@@ -22,7 +23,9 @@
 
 \item{theme}{a character string or object defining the color theme. See \code{\link{color.theme}} for details.}
 
-\item{max.nterms}{the maximum number of terms to display in the bar, dot and box plots.}
+\item{terms}{an optional character vector specifying which terms to display.}
+
+\item{max.nterms}{the maximum number of terms to display. Defaults to 30 for bar, dot and box plots.}
 
 \item{...}{optional parameters passed on to the main layer.}
 }

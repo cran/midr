@@ -11,8 +11,8 @@
 #' @param object a "mid" object.
 #' @param variable a character string or expression specifying the single predictor variable for which to calculate ICE curves.
 #' @param data a data frame containing the observations to be used for the ICE calculations. If not provided, data is automatically extracted based on the function call.
-#' @param n.samples the number of sample points for the \code{variable}'s range.
-#' @param max.nrow the maximum number of rows for the output data frames. If the number of evaluation points exceeds this limit, the original data is randomly subsampled.
+#' @param resolution an integer specifying the number of evaluation points for the \code{variable}'s range.
+#' @param max.nsamples an integer specifying the maximum number of samples. If the number of observations exceeds this limit, the \code{data} is randomly sampled.
 #' @param type the type of prediction to return. "response" (default) for the original scale or "link" for the scale of the linear predictor.
 #' @param keep.effects logical. If \code{TRUE}, the effects of individual component functions are stored in the output object.
 #'
@@ -25,7 +25,6 @@
 #' print(ice)
 #' @returns
 #' \code{mid.conditional()} returns an object of class "mid.conditional". This is a list with the following components:
-#' \item{terms}{a character vector of relevant terms for the \code{variable}.}
 #' \item{observed}{a data frame of the original observations used, along with their predictions.}
 #' \item{conditional}{a data frame of the hypothetical observations and their corresponding predictions.}
 #' \item{values}{a vector of the sample points for the \code{variable} used in the ICE calculation}
@@ -35,13 +34,13 @@
 #' @export mid.conditional
 #'
 mid.conditional <- function(
-    object, variable, data = NULL, n.samples = 100L,
-    max.nrow = 1e5L, type = c("response", "link"), keep.effects = TRUE) {
+    object, variable, data = NULL, resolution = 100L,
+    max.nsamples = 1e3L, type = c("response", "link"), keep.effects = TRUE) {
   type <- match.arg(type)
   rf <- length(tf <- mid.terms(object, remove = variable))
   rv <- length(tv <- mid.terms(object, require = variable))
   if (length(variable) != 1L || rv == 0L)
-    stop("'variable' must be a character denoting a valid predictor variable of the model")
+    stop("'variable' must be a character string denoting a valid predictor variable")
   if (is.null(data))
     data <- model.data(object, env = parent.frame())
   if (!is.data.frame(data))
@@ -54,17 +53,17 @@ mid.conditional <- function(
     mf <- object$encoders[["interactions"]][[variable]]$frame
   if (inherits(mf, "numeric.frame")) {
     br <- attr(mf, "breaks")
-    values <- seq.int(br[1L], br[length(br)], length.out = n.samples)
+    values <- seq.int(br[1L], br[length(br)], length.out = resolution)
   } else {
     values <- mf[, 1L]
     attr(values, "catchall") <- attr(mf, "catchall")
   }
   m <- length(values)
   n <- nrow(data)
-  if (!is.null(max.nrow) && m * n > max.nrow) {
-    max.n <- max.nrow %/% m
-    message(paste0("the number of evaluation points exceeds the limit: the data is reduced to ", max.n," observations"))
-    data <- data[sample(n, max.n), ]
+  if (!is.null(max.nsamples) && n > max.nsamples) {
+    message("number of observations exceeds 'max.nsamples': a sample of ",
+    max.nsamples," observations from 'data' is used")
+    data <- data[sample(n, max.nsamples, replace = FALSE), ]
     n <- nrow(data)
   }
   ids <- rownames(data)
@@ -80,7 +79,6 @@ mid.conditional <- function(
   if (type == "response" && !is.null(object$link))
     yhat <- object$link$linkinv(yhat)
   res <- list()
-  res$terms <- tv
   res$observed <- cbind(.id = ids, yhat = yhat, data)
   if (keep.effects)
     res$observed.effects <- pm
@@ -107,6 +105,7 @@ mid.conditional <- function(
     res$conditional.effects <- pm
   res$values <- values
   class(res) <- c("mid.conditional")
+  attr(res, "term.labels") <- tv
   attr(res, "variable") <- variable
   attr(res, "n") <- n
   res

@@ -2,7 +2,7 @@ Package: midr
 Type: Package
 Title: Learning from Black-Box Models by Maximum Interpretation
         Decomposition
-Version: 0.5.2
+Version: 0.5.3
 Authors@R: c(
     person("Ryoichi", "Asashiba", email = "ryoichi.asashiba@gmail.com",
            role = c("aut", "cre")),
@@ -23,10 +23,10 @@ URL: https://github.com/ryo-asashi/midr,
 BugReports: https://github.com/ryo-asashi/midr/issues
 LinkingTo: Rcpp, RcppEigen
 NeedsCompilation: yes
-Packaged: 2025-09-07 09:16:45 UTC; daysb
+Packaged: 2026-01-16 15:55:23 UTC; daysb
 Author: Ryoichi Asashiba [aut, cre],
   Hirokazu Iwasawa [aut],
   Reiji Kozuma [ctb]
 Maintainer: Ryoichi Asashiba <ryoichi.asashiba@gmail.com>
 Repository: CRAN
-Date/Publication: 2025-09-07 22:00:30 UTC
+Date/Publication: 2026-01-16 16:20:02 UTC

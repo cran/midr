@@ -42,7 +42,8 @@ test_that("interpret() returns valid 'na.action'", {
   # test 3 : formula, na.exclude
   mid <- interpret(formula = y ~ x, na.action = "na.exclude")
   expect_s3_class(mid$na.action, "exclude")
-  expect_equal(predict(mid), c(1, 2, NA, 4, NA))
+  expect_equal(predict(mid, na.action = "na.exclude"),
+               c(1, 2, NA, 4, NA), ignore_attr = TRUE)
   # test 4 : default, vector x
   mid <- interpret(object = NULL, x = x, y = y)
   expect_equal(mid$na.action, c(3, 5), ignore_attr = TRUE)
@@ -93,4 +94,8 @@ test_that("weights works", {
   r3 <- interpret(x1 * x2 * x3 ~ (x1 + x2 + x3), X2, weights = weights)$ratio
   expect_equal(r1, r3)
   expect_false(r1 == r2)
+  # test 2
+  X2[, "wcol"] <- weights
+  r4 <- interpret(x1 * x2 * x3 ~ (x1 + x2 + x3), X2, weights = wcol)$ratio
+  expect_equal(r1, r4)
 })

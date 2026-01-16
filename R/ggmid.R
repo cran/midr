@@ -65,7 +65,7 @@ ggmid.mid <- function(
     intercept = FALSE, main.effects = FALSE, data = NULL, limits = c(NA, NA),
     jitter = .3, resolution = c(100L, 100L), ...) {
   tags <- term.split(term)
-  term <- term.check(term, object$terms, stop = TRUE)
+  term <- term.check(term, mid.terms(object), stop = TRUE)
   type <- match.arg(type)
   if (missing(theme) && length(tags) == 2L)
     theme <- if(type == "data") {
@@ -79,7 +79,7 @@ ggmid.mid <- function(
     if (is.null(data))
       data <- model.data(object, env = parent.frame())
     if (is.null(data))
-      stop(paste0("'data' must be supplied for the '", type, "' plot"))
+      stop("'data' must be supplied for the '", type, "' plot")
     preds <- predict.mid(object, data, terms = unique(c(tags, term)),
                          type = "terms", na.action = "na.pass")
     data <- model.reframe(object, data)

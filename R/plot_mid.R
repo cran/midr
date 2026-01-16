@@ -55,7 +55,7 @@ plot.mid <- function(
     jitter = .3, resolution = c(100L, 100L), ...) {
   dots <- list(...)
   tags <- term.split(term)
-  term <- term.check(term, x$terms, stop = TRUE)
+  term <- term.check(term, mid.terms(x), stop = TRUE)
   type <- match.arg(type)
   if (missing(theme) && length(tags) == 2L)
     theme <- if(type == "data") {
@@ -69,7 +69,7 @@ plot.mid <- function(
     if (is.null(data))
       data <- model.data(x, env = parent.frame())
     if (is.null(data))
-      stop(paste0("'data' must be supplied for the '", type, "' plot"))
+      stop("'data' must be supplied for the '", type, "' plot")
     preds <- predict.mid(x, data, terms = unique(c(tags, term)),
                          type = "terms", na.action = "na.pass")
     data <- model.reframe(x, data)

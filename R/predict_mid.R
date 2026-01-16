@@ -41,63 +41,62 @@
 #'
 predict.mid <- function(
     object, newdata = NULL, na.action = "na.pass",
-    type = c("response", "link", "terms"), terms = object$terms, ...) {
+    type = c("response", "link", "terms"), terms = mid.terms(object), ...) {
   type <- match.arg(type)
   if (!missing(terms)) {
     for (i in seq_len(length(terms)))
-      terms[i] <- term.check(terms[i], object$terms, stop = FALSE)
+      terms[i] <- term.check(terms[i], mid.terms(object), stop = FALSE)
     terms <- unique(terms[!is.na(terms)])
   }
   if (is.null(newdata)) {
-    preds <- object$fitted.matrix[, terms, drop = FALSE]
-    naa <- stats::na.action(object)
-  } else {
-    newdata <- model.reframe(object, newdata)
-    attr(newdata, "na.action") <- NULL
-    newdata <- do.call(na.action, list(newdata))
-    naa <- stats::na.action(newdata)
-    n <- nrow(newdata)
-    r <- length(terms)
-    preds <- matrix(0, nrow = n, ncol = r)
-    colnames(preds) <- terms
-    spl <- sapply(strsplit(terms, ":"), length)
-    mts <- unique(terms[spl == 1L])
-    its <- unique(terms[spl == 2L])
-    mmats <- list()
-    for (tag in mts)
-      mmats[[tag]] <- object$encoders$main.effects[[tag]]$encode(newdata[, tag])
-    imats <- list()
-    for (tag in unique(term.split(its)))
-      imats[[tag]] <- object$encoders$interactions[[tag]]$encode(newdata[, tag])
-    for (i in seq_len(r)) {
-      term <- terms[i]
-      tags <- term.split(term)
-      if (length(tags) == 1L) {
-        X <- mmats[[term]]
-        mid <- object$main.effects[[term]]$mid
-      } else if (length(tags) == 2L) {
-        n1 <- object$encoders$interactions[[tags[1L]]]$n
-        n2 <- object$encoders$interactions[[tags[2L]]]$n
-        uni <- as.matrix(expand.grid(1L:n1, 1L:n2))
-        X <- matrix(0, nrow = n, ncol = nrow(uni))
-        for (j in seq_len(nrow(uni))) {
-          X[, j] <- as.numeric(imats[[tags[1L]]][, uni[j, 1L]] *
-                               imats[[tags[2L]]][, uni[j, 2L]])
-        }
-        mid <- object$interactions[[term]]$mid
-      }
-      preds[, i] <- as.numeric(X %*% mid)
+    newdata <- model.data(object, env = parent.frame())
+    if (is.null(newdata)) {
+      stop("'newdata' must be provided")
     }
   }
+  newdata <- model.reframe(object, newdata)
+  attr(newdata, "na.action") <- NULL
+  newdata <- do.call(na.action, list(newdata))
+  naa <- stats::na.action(newdata)
+  n <- nrow(newdata)
+  m <- length(terms)
   if (type == "terms") {
-    if (inherits(naa, "exclude"))
-      return(stats::napredict(naa, preds))
-    return(structure(preds, constant = object$intercept, na.action = naa))
+    preds <- matrix(0, nrow = n, ncol = m, dimnames = list(NULL, terms))
+  } else {
+    preds <- rep(object$intercept, n)
   }
-  preds <- rowSums(preds) + object$intercept
-  if (type == "response" && !is.null(object$link))
+  ltag <- strsplit(terms, ":")
+  tlen <- sapply(ltag, length)
+  imat <- list()
+  for (tag in unique(unlist(ltag[tlen == 2L]))) {
+    imat[[tag]] <- object$encoders$interactions[[tag]]$encode(newdata[, tag])
+  }
+  for (i in seq_len(m)) {
+    tags <- ltag[[i]]
+    if (length(tags) == 1L) {
+      mmat <- object$encoders$main.effects[[tags]]$encode(newdata[, tags])
+      term_preds <- as.numeric(mmat %*% object$main.effects[[tags]]$mid)
+      mmat <- NULL
+    } else if (length(tags) == 2L) {
+      W <- matrix(
+        object$interactions[[terms[i]]]$mid,
+        nrow = ncol(imat[[tags[1L]]]), ncol = ncol(imat[[tags[2L]]])
+      )
+      term_preds <- rowSums((imat[[tags[1L]]] %*% W) * imat[[tags[2L]]])
+    }
+    if (type == "terms") {
+      preds[, i] <- term_preds
+    } else {
+      preds <- preds + term_preds
+    }
+  }
+  if (type == "response" && !is.null(object$link)) {
     preds <- object$link$linkinv(preds)
-  if (inherits(naa, "exclude"))
-    return(stats::napredict(naa, preds))
-  structure(as.numeric(preds), na.action = naa)
+  } else if (type == "terms") {
+    attr(preds, "constant") <- object$intercept
+  }
+  if (inherits(naa, "exclude")) {
+    preds <- stats::napredict(naa, preds)
+  }
+  return(structure(preds, na.action = naa))
 }

@@ -15,7 +15,8 @@
 #' @param x a "mid.importance" object to be visualized.
 #' @param type the plotting style. One of "barplot", "dotchart", "heatmap", or "boxplot".
 #' @param theme a character string or object defining the color theme. See \code{\link{color.theme}} for details.
-#' @param max.nterms the maximum number of terms to display in the bar, dot and box plots.
+#' @param terms an optional character vector specifying which terms to display.
+#' @param max.nterms the maximum number of terms to display. Defaults to 30 for bar, dot and box plots.
 #' @param ... optional parameters passed on to the graphing functions. Possible arguments are "col", "fill", "pch", "cex", "lty", "lwd" and aliases of them.
 #'
 #' @examples
@@ -45,16 +46,20 @@
 #'
 plot.mid.importance <- function(
     x, type = c("barplot", "dotchart", "heatmap", "boxplot"),
-    theme = NULL, max.nterms = 30L, ...) {
+    theme = NULL, terms = NULL, max.nterms = 30L, ...) {
   dots <- list(...)
   type <- match.arg(type)
   if (missing(theme))
     theme <- getOption("midr.sequential", getOption("midr.qualitative", NULL))
   theme <- color.theme(theme)
   use.theme <- inherits(theme, "color.theme")
-  if (type == "dotchart" || type == "barplot") {
-    imp <- x$importance
+  imp <- x$importance
+  if (!is.null(terms))
+    imp <- imp[match(terms, imp$term, nomatch = 0L), ]
+  if (type != "heatmap")
     imp <- imp[1L:min(max.nterms, nrow(imp), na.rm = TRUE), ]
+  # barplot and dotchart
+  if (type == "barplot" || type == "dotchart") {
     cols <- if (use.theme) {
       if (theme$type == "qualitative")
         to.colors(imp$order, theme)
@@ -72,8 +77,8 @@ plot.mid.importance <- function(
     }
     args <- override(args, dots)
     do.call(barplot2, args)
+  # heatmap
   } else if (type == "heatmap") {
-    imp <- x$importance
     rownames(imp) <- terms <- as.character(imp$term)
     tags <- unique(term.split(terms))
     m <- length(tags)
@@ -112,15 +117,20 @@ plot.mid.importance <- function(
       graphics::abline(v = 1:m - 1/2, h = 1:m - 1/2, col = lcol,
                        lty = args$lty, lwd = args$lwd)
     }
+  # boxplot
   } else if (type == "boxplot") {
-    terms <- as.character(attr(x, "terms"))
-    terms <- terms[1L:min(max.nterms, length(terms), na.rm = TRUE)]
+    terms <- as.character(imp$term)
     opar <- graphics::par("mai", "mar", "las")
     on.exit(graphics::par(opar))
     graphics::par(mai = adjusted.mai(terms), las = 1L)
     plist <- lapply(rev(terms), function(term) x$predictions[, term])
     names(plist) <- rev(terms)
-    cols <- if (use.theme) theme$palette(length(terms)) else NA
+    cols <- if (use.theme) {
+      if (theme$type == "qualitative")
+        to.colors(rev(imp$order), theme)
+      else
+        to.colors(rev(imp$importance), theme)
+    } else NA
     args <- list(x = plist, fill = cols, col = "black", pch = 16L,
                  xlab = "mid", ylab = NULL, horizontal = TRUE)
     args <- override(args, dots)
