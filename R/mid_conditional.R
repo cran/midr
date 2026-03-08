@@ -1,18 +1,24 @@
-#' Calculate MID Conditional Expectations
+#' Calculate MID Conditional Expectation
 #'
 #' @description
 #' \code{mid.conditional()} calculates the data required to draw Individual Conditional Expectation (ICE) curves from a fitted MID model.
 #' ICE curves visualize how a single observation's prediction changes as a specified variable's value varies, while all other variable are held constant.
 #'
 #' @details
-#' The function generates a set of hypothetical observations by creating copies of the original data and varying the specified \code{variable} across a range of sample points.
-#' It then obtains a prediction for each of these hypothetical observations from the MID model. The returned object can be plotted to visualize the ICE curves.
+#' This function generates Individual Conditional Expectation (ICE) data by evaluating the MID model over a range of values for a specific variable.
+#' For a given observation \eqn{\mathbf{x}_i}, the ICE value at \eqn{X_j = x'} is computed by replacing the value \eqn{x_{i,j}} with \eqn{x'} while keeping all other features \eqn{\mathbf{x}_{i,\setminus j}} fixed:
+#'
+#' \deqn{f_{\text{ICE}}(x') = g(x', \mathbf{x}_{i,\setminus j})}
+#'
+#' The function creates a set of hypothetical observations across a grid of evaluation points for the specified \code{variable}.
+#' The resulting object can be plotted to visualize how the prediction changes for individuals as a specific feature varies, revealing both global trends and local departures (heterogeneity).
 #'
 #' @param object a "mid" object.
 #' @param variable a character string or expression specifying the single predictor variable for which to calculate ICE curves.
 #' @param data a data frame containing the observations to be used for the ICE calculations. If not provided, data is automatically extracted based on the function call.
 #' @param resolution an integer specifying the number of evaluation points for the \code{variable}'s range.
 #' @param max.nsamples an integer specifying the maximum number of samples. If the number of observations exceeds this limit, the \code{data} is randomly sampled.
+#' @param seed an integer seed for random sampling. Default is \code{NULL}.
 #' @param type the type of prediction to return. "response" (default) for the original scale or "link" for the scale of the linear predictor.
 #' @param keep.effects logical. If \code{TRUE}, the effects of individual component functions are stored in the output object.
 #'
@@ -21,106 +27,113 @@
 #' mid <- interpret(Ozone ~ .^2, data = airquality, lambda = 1)
 #'
 #' # Calculate the ICE values for a fitted MID model
-#' ice <- mid.conditional(mid, variable = "Wind", data = airquality)
-#' print(ice)
+#' con <- mid.conditional(mid, variable = "Wind", data = airquality)
+#' print(con)
 #' @returns
-#' \code{mid.conditional()} returns an object of class "mid.conditional". This is a list with the following components:
+#' \code{mid.conditional()} returns an object of class "midcon". This is a list with the following components:
 #' \item{observed}{a data frame of the original observations used, along with their predictions.}
 #' \item{conditional}{a data frame of the hypothetical observations and their corresponding predictions.}
-#' \item{values}{a vector of the sample points for the \code{variable} used in the ICE calculation}
+#' \item{variable}{name of the target variable.}
+#' \item{values}{a vector of the sample points for the \code{variable} used in the ICE calculation.}
 #'
-#' @seealso \code{\link{interpret}}, \code{\link{plot.mid.conditional}}, \code{\link{ggmid.mid.conditional}}
+#' For a "mids" collection object, \code{mid.conditional()} returns a collection object of class "midcons"-"midlist".
+#'
+#' @seealso \code{\link{interpret}}, \code{\link{plot.midcon}}, \code{\link{ggmid.midcon}}
 #'
 #' @export mid.conditional
 #'
 mid.conditional <- function(
-    object, variable, data = NULL, resolution = 100L,
-    max.nsamples = 1e3L, type = c("response", "link"), keep.effects = TRUE) {
+    object, variable, data = NULL, resolution = 100L, max.nsamples = 500L,
+    seed = NULL, type = c("response", "link"), keep.effects = TRUE) {
+  if (inherits(object, "mids")) {
+    if (missing(max.nsamples))
+      max.nsamples <- max(1L, 100L %/% length(labels(object)))
+    if (missing(keep.effects)) keep.effects <- FALSE
+    if (missing(seed)) seed <- sample(1e6L, 1L)
+    out <- suppressMessages(lapply(
+      X = object, FUN = mid.conditional, variable = variable, data = data,
+      resolution = resolution, max.nsamples = max.nsamples, seed = seed,
+      type = type, keep.effects = keep.effects
+    ))
+    class(out) <- c("midcons", "midlist")
+    return(out)
+  }
+  if (!inherits(object, "mid"))
+    stop("'object' must be 'mid' or 'mids'")
   type <- match.arg(type)
-  rf <- length(tf <- mid.terms(object, remove = variable))
-  rv <- length(tv <- mid.terms(object, require = variable))
-  if (length(variable) != 1L || rv == 0L)
+  tvar <- mid.terms(object, require = variable)
+  nvar <- length(tvar)
+  tfix <- mid.terms(object, remove = variable)
+  nfix <- length(tfix)
+  if (length(variable) != 1L || nvar == 0L)
     stop("'variable' must be a character string denoting a valid predictor variable")
   if (is.null(data))
     data <- model.data(object, env = parent.frame())
   if (!is.data.frame(data))
     data <- as.data.frame(data)
-  if ("mid" %in% colnames(data))
-    colnames(data)[colnames(data) == "mid"] <- ".mid"
   data <- model.reframe(object, data)
-  mf <- object$encoders[["main.effects"]][[variable]]$frame
-  if (is.null(mf))
-    mf <- object$encoders[["interactions"]][[variable]]$frame
-  if (inherits(mf, "numeric.frame")) {
-    br <- attr(mf, "breaks")
+  enc <- object$encoders$main.effects[[variable]] %||%
+    object$encoders$interactions[[variable]]
+  if (enc$type != "factor") {
+    br <- enc$envir$br
     values <- seq.int(br[1L], br[length(br)], length.out = resolution)
   } else {
-    values <- mf[, 1L]
-    attr(values, "catchall") <- attr(mf, "catchall")
+    olvs <- enc$envir$olvs
+    values <- factor(olvs, levels = olvs)
+    data[, variable] <- enc$transform(data[, variable], lumped = FALSE)
   }
   m <- length(values)
   n <- nrow(data)
   if (!is.null(max.nsamples) && n > max.nsamples) {
     message("number of observations exceeds 'max.nsamples': a sample of ",
     max.nsamples," observations from 'data' is used")
+    if (!is.null(seed)) set.seed(seed)
     data <- data[sample(n, max.nsamples, replace = FALSE), ]
     n <- nrow(data)
   }
   ids <- rownames(data)
-  pm <- matrix(0, nrow = n, ncol = rf)
-  for (i in seq_len(rf))
-    pm[, i] <- mid.f(object, tf[i], x = data)
-  pf <- rowSums(pm)
-  pm <- matrix(0, nrow = n, ncol = rv, dimnames = list(NULL, tv))
-  for (i in seq_len(rv))
-    pm[, i] <- mid.f(object, tv[i], x = data)
-  pv <- rowSums(pm)
-  yhat <- pf + pv + object$intercept
+  rownames(data) <- NULL
+  pmat <- matrix(0, nrow = n, ncol = nfix)
+  for (i in seq_len(nfix))
+    pmat[, i] <- mid.f(object, tfix[i], x = data)
+  pfix <- rowSums(pmat)
+  pmat <- matrix(0, nrow = n, ncol = nvar, dimnames = list(NULL, tvar))
+  for (i in seq_len(nvar))
+    pmat[, i] <- mid.f(object, tvar[i], x = data)
+  pvar <- rowSums(pmat)
+  yhat <- pfix + pvar + object$intercept
   if (type == "response" && !is.null(object$link))
     yhat <- object$link$linkinv(yhat)
   res <- list()
-  res$observed <- cbind(.id = ids, yhat = yhat, data)
+  res$observed <- data.frame(.id = ids, yhat = yhat, data)
   if (keep.effects)
-    res$observed.effects <- pm
-  ldata <- list()
-  for (col in colnames(data)) {
-    if (col == variable) {
-      ldata[[col]] <- rep(values, each = n)
-    } else {
-      ldata[[col]] <- rep.int(data[[col]], times = m)
-    }
-  }
-  ldata <- as.data.frame(ldata)
-  colnames(ldata) <- colnames(data)
-  pm <- matrix(0, nrow = n * m, ncol = rv, dimnames = list(NULL, tv))
-  for (i in seq_len(rv))
-    pm[, i] <- mid.f(object, tv[i], x = ldata)
-  pv <- rowSums(pm)
-  pf <- rep.int(pf, m)
-  lyhat <- pf + pv + object$intercept
+    res$observed.effects <- pmat
+  tags <- unique(term.split(tvar))
+  tags <- tags[tags != variable]
+  names(tags) <- tags
+  longdata <- data[rep.int(seq_len(n), times = m), , drop = FALSE]
+  longdata[, variable] <- rep(values, each = n)
+  pfix <- rep.int(pfix, times = m)
+  pmat <- matrix(0, nrow = n * m, ncol = nvar, dimnames = list(NULL, tvar))
+  for (i in seq_len(nvar))
+    pmat[, i] <- mid.f(object, tvar[i], x = longdata)
+  pvar <- rowSums(pmat)
+  longyhat <- pfix + pvar + object$intercept
   if (type == "response" && !is.null(object$link))
-    lyhat <- object$link$linkinv(lyhat)
-  res$conditional <- cbind(.id = rep.int(ids, m), yhat = lyhat, ldata)
+    longyhat <- object$link$linkinv(longyhat)
+  res$conditional <- data.frame(
+    .id = rep.int(ids, m),
+    vcol = longdata[, variable],
+    yhat = longyhat
+  )
+  names(res$conditional)[2L] <- variable
   if (keep.effects)
-    res$conditional.effects <- pm
+    res$conditional.effects <- pmat
+  res$ids <- ids
+  res$variable <- variable
   res$values <- values
-  class(res) <- c("mid.conditional")
-  attr(res, "term.labels") <- tv
-  attr(res, "variable") <- variable
+  class(res) <- c("midcon")
+  attr(res, "term.labels") <- tvar
   attr(res, "n") <- n
   res
-}
-
-
-#' @exportS3Method base::print
-#'
-print.mid.conditional <- function(
-    x, digits = max(3L, getOption("digits") - 2L), ...
-  ) {
-  n <- attr(x, "n")
-  cat(paste0("\nIndividual Conditional Expectation for ",
-             n, " Observation", if (n > 1L) "s", "\n"))
-  cat(paste0("\nVariable: ", attr(x, "variable"), "\n"))
-  cat("\nSample Points:\n")
-  print(x$values, digits = digits, ...)
 }

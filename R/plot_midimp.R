@@ -1,10 +1,10 @@
 #' Plot MID Importance
 #'
 #' @description
-#' For "mid.importance" objects, \code{plot()} visualizes the importance of component functions of the fitted MID model.
+#' For "midimp" objects, \code{plot()} visualizes the importance of component functions of the fitted MID model.
 #'
 #' @details
-#' This is an S3 method for the \code{plot()} generic that produces an importance plot from a "mid.importance" object, visualizing the average contribution of component functions to the fitted MID model.
+#' This is an S3 method for the \code{plot()} generic that produces an importance plot from a "midimp" object, visualizing the average contribution of component functions to the fitted MID model.
 #'
 #' The \code{type} argument controls the visualization style.
 #' The default, \code{type = "barplot"}, creates a standard bar plot where the length of each bar represents the overall importance of the term.
@@ -12,7 +12,7 @@
 #' The \code{type = "heatmap"} option creates a matrix-shaped heat map where the color of each cell represents the importance of the interaction between a pair of variables, or the main effect on the diagonal.
 #' The \code{type = "boxplot"} option creates a box plot where each box shows the distribution of a term's contributions across all observations, providing insight into the variability of each term's effect.
 #'
-#' @param x a "mid.importance" object to be visualized.
+#' @param x a "midimp" object to be visualized.
 #' @param type the plotting style. One of "barplot", "dotchart", "heatmap", or "boxplot".
 #' @param theme a character string or object defining the color theme. See \code{\link{color.theme}} for details.
 #' @param terms an optional character vector specifying which terms to display.
@@ -30,7 +30,7 @@
 #' plot(imp)
 #'
 #' # Create a dot chart
-#' plot(imp, type = "dotchart", theme = "Okabe-Ito", size = 1.5)
+#' plot(imp, type = "dotchart", theme = "Okabe-Ito", cex = 1.5)
 #'
 #' # Create a heatmap
 #' plot(imp, type = "heatmap")
@@ -38,16 +38,16 @@
 #' # Create a boxplot to see the distribution of effects
 #' plot(imp, type = "boxplot")
 #' @returns
-#' \code{plot.mid.importance()} produces a plot as a side effect and returns \code{NULL} invisibly.
+#' \code{plot.midimp()} produces a plot as a side effect and returns \code{NULL} invisibly.
 #'
-#' @seealso \code{\link{mid.importance}}, \code{\link{ggmid.mid.importance}}
+#' @seealso \code{\link{mid.importance}}, \code{\link{ggmid.midimp}}
 #'
 #' @exportS3Method base::plot
 #'
-plot.mid.importance <- function(
+plot.midimp <- function(
     x, type = c("barplot", "dotchart", "heatmap", "boxplot"),
     theme = NULL, terms = NULL, max.nterms = 30L, ...) {
-  dots <- list(...)
+  dots <- override(list(), list(...))
   type <- match.arg(type)
   if (missing(theme))
     theme <- getOption("midr.sequential", getOption("midr.qualitative", NULL))
@@ -55,9 +55,10 @@ plot.mid.importance <- function(
   use.theme <- inherits(theme, "color.theme")
   imp <- x$importance
   if (!is.null(terms))
-    imp <- imp[match(terms, imp$term, nomatch = 0L), ]
+    imp <- imp[match(terms, imp$term, nomatch = 0L), , drop = FALSE]
   if (type != "heatmap")
-    imp <- imp[1L:min(max.nterms, nrow(imp), na.rm = TRUE), ]
+    imp <- utils::head(imp, max.nterms)
+  imp$term <- factor(imp$term, levels = rev(imp$term))
   # barplot and dotchart
   if (type == "barplot" || type == "dotchart") {
     cols <- if (use.theme) {
@@ -71,12 +72,14 @@ plot.mid.importance <- function(
     if (type == "dotchart") {
       args$type <- "d"
       args$col <- cols
+      alpha.on <- "col"
     } else {
       args$type <- "b"
       args$fill <- cols
+      alpha.on <- "fill"
     }
-    args <- override(args, dots)
-    do.call(barplot2, args)
+    args <- set.alpha(override(args, dots), on = alpha.on)
+    do.call(.barplot, args)
   # heatmap
   } else if (type == "heatmap") {
     rownames(imp) <- terms <- as.character(imp$term)
@@ -92,7 +95,8 @@ plot.mid.importance <- function(
           if (!term %in% terms)
             term <- paste0(tags[j], ":", tags[i])
         }
-        mat[i, j] <- imp[term, "importance"]
+        if (term %in% rownames(imp))
+          mat[i, j] <- imp[term, "importance"]
       }
     }
     if (!use.theme)
@@ -100,13 +104,13 @@ plot.mid.importance <- function(
     cols <- to.colors(0:11, theme)
     opar <- graphics::par("mai", "mar", "las")
     on.exit(graphics::par(opar))
-    graphics::par(mai = adjusted.mai(tags), las = 1L)
+    graphics::par(mai = adjusted_margin(tags), las = 1L)
     args <- list(x = seq_len(m), y = seq_len(m), z = mat, fill = cols, col = NA,
                  axes = FALSE, xlab = "", ylab = "", lty = 1L, lwd = 1L)
-    args <- override(args, dots)
+    args <- set.alpha(override(args, dots), on = "fill")
     lcol <- args$col[1L]
-    args$col <- NULL
-    names(args)[4L] <- "col"
+    args$col <- args$fill
+    args$fill <- NULL
     do.call(graphics::image.default, args)
     at <- seq_len(m + 2) - 1
     graphics::axis(1L, at = at, labels = c("", tags, ""))
@@ -122,7 +126,7 @@ plot.mid.importance <- function(
     terms <- as.character(imp$term)
     opar <- graphics::par("mai", "mar", "las")
     on.exit(graphics::par(opar))
-    graphics::par(mai = adjusted.mai(terms), las = 1L)
+    graphics::par(mai = adjusted_margin(terms), las = 1L)
     plist <- lapply(rev(terms), function(term) x$predictions[, term])
     names(plist) <- rev(terms)
     cols <- if (use.theme) {
@@ -133,8 +137,12 @@ plot.mid.importance <- function(
     } else NA
     args <- list(x = plist, fill = cols, col = "black", pch = 16L,
                  xlab = "mid", ylab = NULL, horizontal = TRUE)
-    args <- override(args, dots)
-    names(args)[2L:3L] <- c("col", "border")
+    args <- set.alpha(override(args, dots), on = "fill")
+    args$border <- args$col
+    args$col <- args$fill
+    args$fill <- NULL
+    args$boxwex <- args$boxwex %||% args$width
+    args$width <- NULL
     do.call(graphics::boxplot.default, args)
   }
   invisible(NULL)

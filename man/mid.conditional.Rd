@@ -2,14 +2,15 @@
 % Please edit documentation in R/mid_conditional.R
 \name{mid.conditional}
 \alias{mid.conditional}
-\title{Calculate MID Conditional Expectations}
+\title{Calculate MID Conditional Expectation}
 \usage{
 mid.conditional(
   object,
   variable,
   data = NULL,
   resolution = 100L,
-  max.nsamples = 1000L,
+  max.nsamples = 500L,
+  seed = NULL,
   type = c("response", "link"),
   keep.effects = TRUE
 )
@@ -25,32 +26,42 @@ mid.conditional(
 
 \item{max.nsamples}{an integer specifying the maximum number of samples. If the number of observations exceeds this limit, the \code{data} is randomly sampled.}
 
+\item{seed}{an integer seed for random sampling. Default is \code{NULL}.}
+
 \item{type}{the type of prediction to return. "response" (default) for the original scale or "link" for the scale of the linear predictor.}
 
 \item{keep.effects}{logical. If \code{TRUE}, the effects of individual component functions are stored in the output object.}
 }
 \value{
-\code{mid.conditional()} returns an object of class "mid.conditional". This is a list with the following components:
+\code{mid.conditional()} returns an object of class "midcon". This is a list with the following components:
 \item{observed}{a data frame of the original observations used, along with their predictions.}
 \item{conditional}{a data frame of the hypothetical observations and their corresponding predictions.}
-\item{values}{a vector of the sample points for the \code{variable} used in the ICE calculation}
+\item{variable}{name of the target variable.}
+\item{values}{a vector of the sample points for the \code{variable} used in the ICE calculation.}
+
+For a "mids" collection object, \code{mid.conditional()} returns a collection object of class "midcons"-"midlist".
 }
 \description{
 \code{mid.conditional()} calculates the data required to draw Individual Conditional Expectation (ICE) curves from a fitted MID model.
 ICE curves visualize how a single observation's prediction changes as a specified variable's value varies, while all other variable are held constant.
 }
 \details{
-The function generates a set of hypothetical observations by creating copies of the original data and varying the specified \code{variable} across a range of sample points.
-It then obtains a prediction for each of these hypothetical observations from the MID model. The returned object can be plotted to visualize the ICE curves.
+This function generates Individual Conditional Expectation (ICE) data by evaluating the MID model over a range of values for a specific variable.
+For a given observation \eqn{\mathbf{x}_i}, the ICE value at \eqn{X_j = x'} is computed by replacing the value \eqn{x_{i,j}} with \eqn{x'} while keeping all other features \eqn{\mathbf{x}_{i,\setminus j}} fixed:
+
+\deqn{f_{\text{ICE}}(x') = g(x', \mathbf{x}_{i,\setminus j})}
+
+The function creates a set of hypothetical observations across a grid of evaluation points for the specified \code{variable}.
+The resulting object can be plotted to visualize how the prediction changes for individuals as a specific feature varies, revealing both global trends and local departures (heterogeneity).
 }
 \examples{
 data(airquality, package = "datasets")
 mid <- interpret(Ozone ~ .^2, data = airquality, lambda = 1)
 
 # Calculate the ICE values for a fitted MID model
-ice <- mid.conditional(mid, variable = "Wind", data = airquality)
-print(ice)
+con <- mid.conditional(mid, variable = "Wind", data = airquality)
+print(con)
 }
 \seealso{
-\code{\link{interpret}}, \code{\link{plot.mid.conditional}}, \code{\link{ggmid.mid.conditional}}
+\code{\link{interpret}}, \code{\link{plot.midcon}}, \code{\link{ggmid.midcon}}
 }

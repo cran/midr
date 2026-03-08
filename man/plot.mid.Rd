@@ -2,7 +2,7 @@
 % Please edit documentation in R/plot_mid.R
 \name{plot.mid}
 \alias{plot.mid}
-\title{Plot MID Component Functions}
+\title{Plot MID Component Function}
 \usage{
 \method{plot}{mid}(
   x,
@@ -13,8 +13,9 @@
   main.effects = FALSE,
   data = NULL,
   limits = NULL,
-  jitter = 0.3,
+  jitter = NULL,
   resolution = c(100L, 100L),
+  lumped = TRUE,
   ...
 )
 }
@@ -38,6 +39,8 @@
 \item{jitter}{a numeric value specifying the amount of jitter for the data points.}
 
 \item{resolution}{an integer or vector of two integers specifying the resolution of the raster plot for interactions.}
+
+\item{lumped}{logical. If \code{TRUE}, uses the lumped factor levels; if \code{FALSE}, uses the original levels from the data. Always \code{FALSE} when \code{main.effects = TRUE}.}
 
 \item{...}{optional parameters to be passed to the graphing function. Possible arguments are "col", "fill", "pch", "cex", "lty", "lwd" and aliases of them.}
 }

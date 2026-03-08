@@ -10,7 +10,8 @@ mid.importance(
   weights = NULL,
   sort = TRUE,
   measure = 1L,
-  max.nsamples = 10000L
+  max.nsamples = 10000L,
+  seed = NULL
 )
 }
 \arguments{
@@ -25,20 +26,27 @@ mid.importance(
 \item{measure}{an integer specifying the measure of importance. Possible alternatives are \code{1} for the mean absolute effect, \code{2} for the root mean square effect, and \code{3} for the median absolute effect.}
 
 \item{max.nsamples}{an integer specifying the maximum number of samples to retain in the \code{predictions} component of the returned object. If the number of observations exceeds this value, a weighted random sample is taken.}
+
+\item{seed}{an integer seed for random sampling. Default is \code{NULL}.}
 }
 \value{
-\code{mid.importance()} returns an object of class "mid.importance". This is a list containing the following components:
+\code{mid.importance()} returns an object of class "midimp". This is a list containing the following components:
 \item{importance}{a data frame with the calculated importance values, sorted by default.}
 \item{predictions}{the matrix of the fitted or predicted MID values. If the number of observations exceeds \code{max.nsamples}, this matrix contains a sampled subset.}
 \item{measure}{a character string describing the type of the importance measure used.}
+
+For a "mids" collection object, \code{mid.importance()} returns a collection object of class "midimps"-"midlist".
 }
 \description{
 \code{mid.importance()} calculates the MID importance of a fitted MID model.
 This is a measure of feature importance that quantifies the average contribution of each component function across a dataset.
 }
 \details{
-The MID importance of a component function (e.g., a main effect or an interaction) is defined as the mean absolute effect on the predictions within the given data.
-Terms with higher importance have a larger average impact on the model's overall predictions.
+The MID importance of a component function \eqn{g_S}, where \eqn{S} represents a single feature \eqn{\{j\}} or a feature pair \eqn{\{j, k\}}, is defined as the mean absolute effect on the predictions within the given data:
+
+\deqn{\mathbf{I}(g_S) = \frac{1}{n} \sum_{i=1}^n |g_S(\mathbf{x}_{i,S})|}
+
+Terms with higher importance values have a larger average impact on the model's overall predictions. Because all components (main effects and interactions) are measured on the same scale as the response variable, these values provide a direct and comparable measure of each term's contribution to the model.
 }
 \examples{
 data(airquality, package = "datasets")
@@ -53,5 +61,5 @@ imp <- mid.importance(mid, measure = 2)
 print(imp)
 }
 \seealso{
-\code{\link{interpret}}, \code{\link{plot.mid.importance}}, \code{\link{ggmid.mid.importance}}
+\code{\link{interpret}}, \code{\link{plot.midimp}}, \code{\link{ggmid.midimp}}
 }

@@ -1,25 +1,24 @@
-#' Plot MID Breakdowns
+#' Plot MID Breakdown
 #'
 #' @description
-#' For "mid.breakdown" objects, \code{plot()} visualizes the breakdown of a prediction by component functions.
+#' For "midbrk" objects, \code{plot()} visualizes the breakdown of a prediction by component functions.
 #'
 #' @details
-#' This is an S3 method for the \code{plot()} generic that produces a breakdown plot from a "mid.breakdown" object, visualizing the contribution of each component function to a single prediction.
+#' This is an S3 method for the \code{plot()} generic that produces a breakdown plot from a "midbrk" object, visualizing the contribution of each component function to a single prediction.
 #'
 #' The \code{type} argument controls the visualization style.
 #' The default, \code{type = "waterfall"}, creates a waterfall plot that shows how the prediction builds from the intercept, with each term's contribution sequentially added or subtracted.
 #' The \code{type = "barplot"} option creates a standard bar plot where the length of each bar represents the magnitude of the term's contribution.
 #' The \code{type = "dotchart"} option creates a dot plot showing the contribution of each term as a point connected to a zero baseline.
 #'
-#' @param x a "mid.breakdown" object to be visualized.
+#' @param x a "midbrk" object to be visualized.
 #' @param type the plotting style. One of "waterfall", "barplot" or "dotchart".
 #' @param theme a character string or object defining the color theme. See \code{\link{color.theme}} for details.
 #' @param terms an optional character vector specifying which terms to display.
 #' @param max.nterms the maximum number of terms to display in the plot. Less important terms will be grouped into a "catchall" category.
-#' @param width a numeric value specifying the width of the bars.
 #' @param vline logical. If \code{TRUE}, a vertical line is drawn at the zero or intercept line.
-#' @param catchall a character string for the catchall label.
-#' @param label.format a character vector of length one or two specifying the format of the axis labels. The first element is used for main effects (default \code{"\%t = \%v"}), and the second is for interactions (default \code{"\%t:\%t"}). Use \code{"\%t"} for the term name and \code{"\%v"} for its value.
+#' @param others a character string for the catchall label.
+#' @param pattern a character vector of length one or two specifying the format of the axis labels. The first element is used for main effects (default \code{"\%t = \%v"}), and the second is for interactions (default \code{"\%t:\%t"}). Use \code{"\%t"} for the term name and \code{"\%v"} for its value.
 #' @param format.args a named list of additional arguments passed to \code{\link[base]{format}} for formatting the values. Common arguments include \code{digits}, \code{nsmall}, and \code{big.mark}.
 #' @param ... optional parameters passed on to the graphing function. Possible arguments are "col", "fill", "pch", "cex", "lty", "lwd" and aliases of them.
 #'
@@ -39,18 +38,17 @@
 #' # Create a dot chart
 #' plot(mbd, type = "dotchart", size = 1.5)
 #' @returns
-#' \code{plot.mid.breakdown()} produces a plot as a side effect and returns \code{NULL} invisibly.
+#' \code{plot.midbrk()} produces a plot as a side effect and returns \code{NULL} invisibly.
 #'
-#' @seealso \code{\link{mid.breakdown}}, \code{\link{ggmid.mid.breakdown}}
+#' @seealso \code{\link{mid.breakdown}}, \code{\link{ggmid.midbrk}}
 #'
 #' @exportS3Method base::plot
 #'
-plot.mid.breakdown <- function(
+plot.midbrk <- function(
     x, type = c("waterfall", "barplot", "dotchart"), theme = NULL,
-    terms = NULL, max.nterms = 15L, width = NULL, vline = TRUE,
-    catchall = "(others)", label.format = c("%t=%v", "%t:%t"),
-    format.args = list(), ...) {
-  dots <- list(...)
+    terms = NULL, max.nterms = 15L, vline = TRUE, others = "others",
+    pattern = c("%t=%v", "%t:%t"), format.args = list(), ...) {
+  dots <- override(list(), list(...))
   type <- match.arg(type)
   if (missing(theme))
     theme <- getOption("midr.sequential", getOption("midr.qualitative", NULL))
@@ -58,14 +56,18 @@ plot.mid.breakdown <- function(
   use.theme <- inherits(theme, "color.theme")
   bd <- x$breakdown
   bd$term <- as.character(bd$term)
-  use.catchall <- FALSE
+  use.others <- FALSE
   if (!is.null(terms)) {
-    rowid <- match(terms, bd$term, nomatch = 0L)
-    resid <- bd[-rowid, "mid"]
-    bd <- bd[rowid, ]
-    if (length(resid) > 0L) {
-      bd[nrow(bd) + 1L, "mid"] <- sum(resid)
-      use.catchall <- TRUE
+    idx <- match(terms, bd$term)
+    idx <- idx[!is.na(idx)]
+    if (length(idx) > 0L) {
+      resid_idx <- setdiff(seq_len(nrow(bd)), idx)
+      resid_sum <- sum(bd$mid[resid_idx])
+      bd <- bd[idx, , drop = FALSE]
+      if (length(resid_idx) > 0L) {
+        bd[nrow(bd) + 1L, "mid"] <- resid_sum
+        use.others <- TRUE
+      }
     }
   }
   nmax <- min(max.nterms, nrow(bd), na.rm = TRUE)
@@ -73,27 +75,27 @@ plot.mid.breakdown <- function(
     resid <- sum(bd[nmax:nrow(bd), "mid"])
     bd <- bd[1L:(nmax - 1L), ]
     bd[nmax, "mid"] <- resid
-    use.catchall <- TRUE
+    use.others <- TRUE
   }
   # update labels
   format.args$x <- as.data.frame(x$data)
   values <- unlist(do.call(base::format, format.args))
-  for (i in seq_len(nrow(bd) - as.numeric(use.catchall))) {
+  for (i in seq_len(nrow(bd) - as.numeric(use.others))) {
     term <- bd[i, "term"]
     tags <- term.split(term)
     vals <- values[tags]
     if (length(tags) == 1L) {
-      label <- sub("%v", vals[1L], sub("%t", tags[1L], label.format[1L]))
+      label <- sub("%v", vals[1L], sub("%t", tags[1L], pattern[1L]))
     } else {
-      if (length(label.format) == 1L)
-        label.format <- c(label.format, "%t:%t")
-      label <- sub("%v", vals[1L], sub("%t", tags[1L], label.format[2L]))
+      if (length(pattern) == 1L)
+        pattern <- c(pattern, "%t:%t")
+      label <- sub("%v", vals[1L], sub("%t", tags[1L], pattern[2L]))
       label <- sub("%v", vals[2L], sub("%t", tags[2L], label))
     }
     bd[i, "term"] <- label
   }
-  if (use.catchall)
-    bd[nrow(bd), "term"] <- catchall
+  if (use.others)
+    bd[nrow(bd), "term"] <- others
   if (type == "barplot" || type == "dotchart") {
     args <- list(to = bd$mid, labels = bd$term,
                  horizontal = TRUE, xlab = "mid")
@@ -106,13 +108,14 @@ plot.mid.breakdown <- function(
     if (type == "dotchart") {
       args$type <- "d"
       args$col <- cols
+      alpha.on <- "col"
     } else {
       args$type <- "b"
       args$fill <- cols
-      args$width <- ifnot.null(width, .8)
+      alpha.on <- "fill"
     }
-    args <- override(args, dots)
-    do.call(barplot2, args)
+    args <- set.alpha(override(args, dots), on = alpha.on)
+    do.call(.barplot, args)
     if (vline)
       graphics::abline(v = 0)
   } else if (type == "waterfall") {
@@ -122,21 +125,21 @@ plot.mid.breakdown <- function(
       else
         to.colors(bd$mid, theme)
     } else "gray35"
-    width <- ifnot.null(width, .6)
+    width <- dots$width %||% .6
     hw <- width / 2
     n <- nrow(bd)
     cs <- cumsum(c(x$intercept, bd$mid))
     bd$xmin <- cs[1L:n]
     bd$xmax <- cs[2L:(n + 1L)]
     args <- list(to = bd$xmax, from = bd$xmin, labels = bd$term, type = "b",
-                 fill = cols, horizontal = TRUE, xlab = "mid", width = width,
-                 lty = 1L, lwd = 1L, col = NULL)
-    args <- override(args, dots)
-    do.call(barplot2, args)
+                 fill = cols, horizontal = TRUE, xlab = "yhat", width = width,
+                 lty = 1L, lwd = 1L)
+    args <- set.alpha(override(args, dots), on = "fill")
+    do.call(.barplot, args)
     for (i in seq_len(n)) {
       graphics::lines.default(x = rep.int(bd[i, "xmax"], 2L),
                               y = c(n + 1 - i + hw, max(n - i - hw, 1 - hw)),
-                              col = ifnot.null(args$col, 1L),
+                              col = args$col %||% 1L,
                               lty = args$lty, lwd = args$lwd)
     }
     if (vline)

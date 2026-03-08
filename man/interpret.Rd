@@ -17,7 +17,6 @@ interpret(object, ...)
   link = NULL,
   k = c(NA, NA),
   type = c(1L, 1L),
-  frames = list(),
   interactions = FALSE,
   terms = NULL,
   singular.ok = FALSE,
@@ -27,9 +26,12 @@ interpret(object, ...)
   kappa = 1e+06,
   na.action = getOption("na.action"),
   verbosity = 1L,
-  encoding.digits = 3L,
-  use.catchall = FALSE,
-  catchall = "(others)",
+  frames = list(),
+  split = "quantile",
+  digits = NULL,
+  lump = "none",
+  others = "others",
+  sep = ">",
   max.nelements = 1000000000L,
   nil = 1e-07,
   tol = 1e-07,
@@ -59,19 +61,17 @@ interpret(object, ...)
 
 \item{x}{a matrix or data.frame of predictor variables to be used in the fitting process. The response variable should not be included.}
 
-\item{y}{an optional numeric vector of the model predictions or the response variable.}
+\item{y}{an optional vector or matrix of the model predictions or the response variables.}
 
 \item{weights}{a numeric vector of sample weights for each observation in \code{x}.}
 
 \item{pred.fun}{a function to obtain predictions from a fitted model, where the first argument is for the fitted model and the second argument is for new data. The default is \code{get.yhat()}.}
 
-\item{link}{a character string specifying the link function: one of "logit", "probit", "cauchit", "cloglog", "identity", "log", "sqrt", "1/mu^2", "inverse", "translogit", "transprobit", "identity-logistic" and "identity-gaussian", or an object containing two functions \code{linkfun()} and \code{linkinv()}. See \code{help(make.link)}.}
+\item{link}{a character string specifying the link function. This can be one of the links from \code{\link[stats]{make.link}()} (e.g., "log", "logit", "probit", "cauchit"), one of the links from \code{\link{get.link}()} (e.g., "log1p", "robit", "scobit", "box-cox"), or a custom object containing at least the \code{linkfun()} and \code{linkinv()} functions.}
 
 \item{k}{an integer or a vector of two integers specifying the maximum number of sample points for main effects (\code{k[1]}) and interactions (\code{k[2]}). If a single integer is provided, it is used for main effects while the value for interactions is automatically determined. Any \code{NA} value will also trigger this automatic determination. With non-positive values, all unique data points are used as sample points.}
 
-\item{type}{an integer or integer-valued vector of length two. The type of encoding. The effects of quantitative variables are modeled as piecewise linear functions if \code{type} is \code{1}, and as step functions if \code{type} is \code{0}. If a vector is passed, \code{type[1L]} is used for main effects and \code{type[2L]} is used for interactions.}
-
-\item{frames}{a named list of encoding frames ("numeric.frame" or "factor.frame" objects). The encoding frames are used to encode the variable of the corresponding name. If the name begins with "|" or ":", the encoding frame is used only for main effects or interactions, respectively.}
+\item{type}{a character string, an integer, or a vector of length two specifying the encoding type. Can be integer (\code{1} for linear, \code{0} for step) or character (\code{"linear"}, \code{"constant"}). If a vector is passed, \code{type[1L]} is used for main effects and \code{type[2L]} is used for interactions.}
 
 \item{interactions}{logical. If \code{TRUE} and if \code{terms} and \code{formula} are not supplied, all interactions for each pair of variables are modeled and calculated.}
 
@@ -79,9 +79,9 @@ interpret(object, ...)
 
 \item{singular.ok}{logical. If \code{FALSE}, a singular fit is an error.}
 
-\item{mode}{an integer specifying the method of calculation. If \code{mode} is \code{1}, the centralization constraints are treated as penalties for the least squares problem. If \code{mode} is \code{2}, the constraints are used to reduce the number of free parameters.}
+\item{mode}{an integer specifying the method of calculation. If \code{mode} is \code{1}, the centering constraints are treated as penalties for the least squares problem. If \code{mode} is \code{2}, the constraints are used to reduce the number of free parameters.}
 
-\item{method}{an integer specifying the method to be used to solve the least squares problem. A non-negative value will be passed to \code{RcppEigen::fastLmPure()}. If negative, \code{stats::lm.fit()} is used.}
+\item{method}{an integer or a character string specifying the algorithm to solve the core least squares problem. Built-in options include \code{0} or "qr" (column-pivoted QR), \code{1} or "unpivoted.qr", \code{2} or "llt" (LLT Cholesky), \code{3} or "ldlt" (LDLT Cholesky), \code{4} or "svd" (singular value decomposition), and \code{5} or "eigen" (eigenvalue-eigenvector decomposition). For multi-response targets (matrix \code{y}), the computation automatically utilizes base R equivalents or safely falls back to "qr" with \code{stats::.lm.fit()}. External custom solvers can also be injected by setting \code{options(midr.solver.<method_name> = function(x, y) ...)}.}
 
 \item{lambda}{the penalty factor for pseudo smoothing. The default is \code{0}.}
 
@@ -91,11 +91,17 @@ interpret(object, ...)
 
 \item{verbosity}{the level of verbosity. \code{0}: fatal, \code{1}: warning (default), \code{2}: info or \code{3}: debug.}
 
-\item{encoding.digits}{an integer. The rounding digits for encoding numeric variables. Used only when \code{type} is \code{1}.}
+\item{frames}{a named list of encoding frames ("numeric.frame" or "factor.frame" objects). The encoding frames are used to encode the variable of the corresponding name. If the name begins with "|" or ":", the encoding frame is used only for main effects or interactions, respectively.}
 
-\item{use.catchall}{logical. If \code{TRUE}, less frequent levels of qualitative variables are dropped and replaced by the catchall level.}
+\item{split}{a character string specifying the splitting strategy for numeric variables: \code{"quantile"} or \code{"uniform"}.}
 
-\item{catchall}{a character string specifying the catchall level.}
+\item{digits}{an integer. The rounding digits for encoding numeric variables. Used only when \code{type} is \code{1} or \code{"linear"}.}
+
+\item{lump}{a character string specifying the lumping strategy for factor variables: \code{"none"}, \code{"rank"}, \code{"order"}, or \code{"auto"}.}
+
+\item{others}{a character string specifying the others level.}
+
+\item{sep}{a character string used to separate levels when merging ordered factors or creating interaction terms.}
 
 \item{max.nelements}{an integer specifying the maximum number of elements of the design matrix. Defaults to \code{1e9}.}
 
@@ -124,32 +130,44 @@ interpret(object, ...)
 \item{intercept}{the intercept.}
 \item{encoders}{a list of variable encoders.}
 \item{main.effects}{a list of data frames representing the main effects.}
-\item{interacions}{a list of data frames representing the interactions.}
+\item{interactions}{a list of data frames representing the interactions.}
 \item{ratio}{the ratio of the sum of squared error between the target model predictions and the fitted MID values, to the sum of squared deviations of the target model predictions.}
 \item{linear.predictors}{a numeric vector of the linear predictors.}
 \item{fitted.values}{a numeric vector of the fitted values.}
 \item{residuals}{a numeric vector of the working residuals.}
 \item{na.action}{information about the special handling of \code{NA}s.}
+
+If a matrix is provided for \code{y}, \code{interpret()} returns a "midrib" and "mids" object.
 }
 \description{
 \code{interpret()} is used to fit a Maximum Interpretation Decomposition (MID) model.
 MID models are additive, highly interpretable models composed of functions, each with up to two variables.
 }
 \details{
-The MID model approximates a target model's prediction function \eqn{f(\mathbf{x})}, or values of the response variable \eqn{\mathbf{y}}.
-This model, denoted as \eqn{\mathcal{F}(\mathbf{x})}, has the following structure: \deqn{\mathcal{F}(\mathbf{x}) = f_\phi + \sum_{j} f_{j}(x_j) + \sum_{j<k} f_{jk}(x_j, x_k)}
-where \eqn{f_\phi} is the intercept, \eqn{f_{j}(x_j)} is the main effect of feature \eqn{j}, and \eqn{f_{jk}(x_j, x_k)} is the second-order interaction effect between features \eqn{j} and \eqn{k}.
+Maximum Interpretation Decomposition (MID) is a functional decomposition framework designed to serve as a faithful surrogate for complex, black-box models.
+It deconstructs a target prediction function \eqn{f(\mathbf{X})} into a set of highly interpretable components:
 
-To ensure that the decomposed components are unique, they are fitted under the \emph{centering constraints}: each main effect's average is constrained to be zero, and each interaction effect's conditional averages are also constrained to be zero.
-The model is fitted by minimizing the squared error between the target, \eqn{f(\mathbf{x})} or \eqn{\mathbf{y}}, and the surrogate \eqn{\mathcal{F}(\mathbf{x})}, which is typically evaluated on a representative dataset.
+\deqn{f(\mathbf{X}) = g_\emptyset + \sum_{j} g_j(X_j) + \sum_{j<k} g_{jk}(X_j, X_k) + g_D(\mathbf{X})}
+
+where \eqn{g_\emptyset} is the intercept, \eqn{g_j(X_j)} represents the main effect of feature \eqn{j}, \eqn{g_{jk}(X_j, X_k)} represents the second-order interaction between features \eqn{j} and \eqn{k}, and \eqn{g_D(\mathbf{X})} is the residual.
+
+The components \eqn{g_j} and \eqn{g_{jk}} are modeled as a linear expansion of basis functions, resulting in piecewise linear or piecewise constant functions.
+The estimation is performed by minimizing a penalized squared residual objective over a representative dataset:
+
+\deqn{\text{minimize } \mathbf{E}[g_D(\mathbf{X})^2] + \lambda R(g;\mathbf{X})}
+
+where \eqn{\lambda \ge 0} is a regularization parameter that controls the smoothness of the components by penalizing the second-order differences of adjacent coefficients (a discrete roughness penalty).
+
+To ensure the uniqueness and identifiability of the decomposition, MID imposes the centering constraints: for any feature \eqn{j}, \eqn{\mathbf{E}[g_j(X_j)] = 0}; and for any feature pair \eqn{(j, k)}, \eqn{\mathbf{E}[g_{jk}(X_j, X_k) \mid X_j = x_j] = 0} for all \eqn{x_j} and \eqn{\mathbf{E}[g_{jk}(X_j, X_k) \mid X_k = x_k] = 0} for all \eqn{x_k}.
+In cases where the least-squares solution is still not unique due to collinearity, an additional probability-weighted minimum-norm constraint is applied to the coefficients to ensure a stable and unique solution.
 }
 \section{Advanced Fitting Options}{
 
 The \code{...} argument can be used to pass several advanced fitting options:
 \describe{
   \item{fit.intercept}{logical. If \code{TRUE}, the intercept term is fitted as part of the least squares problem. If \code{FALSE} (default), it is calculated as the weighted mean of the response.}
-  \item{interpolate.beta}{a character string specifying the method for interpolating inestimable coefficients (betas) that arise from sparse data regions. Can be "iterative" for an iterative smoothing process, "direct" for solving a linear system, or "none" to disable interpolation.}
-  \item{maxit}{an integer specifying the maximum number of iterations for the "iterative" interpolation method.}
+  \item{interpolation}{a character string specifying the method for interpolating inestimable coefficients (betas) that arise from sparse data regions. Can be "iterative" for an iterative smoothing process, "direct" for solving a linear system, or "none" to disable interpolation.}
+  \item{max.niterations}{an integer specifying the maximum number of iterations for the "iterative" interpolation method.}
   \item{save.memory}{an integer (0, 1, or 2) specifying the memory-saving level. Higher values reduce memory usage at the cost of increased computation time.}
   \item{weighted.norm}{logical. If \code{TRUE}, the columns of the design matrix are normalized by the square root of their weighted sum. This is required to ensure the minimum-norm least squares solution obtained by appropriate methods (i.e., \code{4} or \code{5}) of \code{fastLmPure()} is the minimum-norm solution in a \emph{weighted} sense.}
   \item{weighted.encoding}{logical. If \code{TRUE}, sample weights are used during the encoding process (e.g., for calculating quantiles to determine knots).}

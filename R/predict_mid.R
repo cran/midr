@@ -1,7 +1,7 @@
 #' Predict Method for fitted MID Models
 #'
 #' @description
-#' \code{predict.mid()} is an S3 method for "mid" objects that obtains predictions from a fitted MID model.
+#' \code{predict()} methods for obtaining predictions from a fitted MID model ("mid") or a collection of MID models ("mids").
 #' It can be used to predict on new data or to retrieve the fitted values from the original data.
 #'
 #' @details
@@ -12,12 +12,12 @@
 #'
 #' The \code{terms} argument allows for predictions based on a subset of the model's component functions, excluding others.
 #'
-#' @param object a "mid" object to be used to make predictions.
+#' @param object a fitted model object of class "mid", or a collection object ("mids") to be used for prediction.
 #' @param newdata a data frame of the new observations. If \code{NULL}, the original fitted values are extracted and returned.
 #' @param na.action a function or character string specifying what should happen when the data contain \code{NA} values.
 #' @param type the type of prediction required. One of "response", "link", or "terms".
 #' @param terms a character vector of term labels, specifying a subset of component functions to use for predictions.
-#' @param ... arguments to be passed to other methods (not used in this method).
+#' @param ... further arguments passed to or from other methods.
 #'
 #' @examples
 #' data(airquality, package = "datasets")
@@ -33,7 +33,9 @@
 #' # Get the contributions of specific terms
 #' predict(mid, airquality[test, ], terms = c("Temp", "Wind"), type = "terms")
 #' @returns
-#' \code{predict.mid()} returns a numeric vector of MID model predictions, or a matrix if \code{type = "terms"}.
+#' For a single "mid" object, \code{predict.mid()} returns a numeric vector if \code{type} is "response" or "link", or a numeric matrix if \code{type = "terms"}.
+#'
+#' For a collection ("mids"), \code{predict.mids()} returns a numeric matrix where each column corresponds to a model if \code{type} is "response" or "link", or a list of numeric matrices if \code{type = "terms"}.
 #'
 #' @seealso \code{\link{interpret}}, \code{\link{mid.effect}}, \code{\link{get.yhat}}
 #'
@@ -63,9 +65,10 @@ predict.mid <- function(
   if (type == "terms") {
     preds <- matrix(0, nrow = n, ncol = m, dimnames = list(NULL, terms))
   } else {
-    preds <- rep(object$intercept, n)
+    k <- length(object$intercept)
+    preds <- matrix(object$intercept, nrow = n, ncol = k, byrow = TRUE)
   }
-  ltag <- strsplit(terms, ":")
+  ltag <- strsplit(terms %||% character(), ":")
   tlen <- sapply(ltag, length)
   imat <- list()
   for (tag in unique(unlist(ltag[tlen == 2L]))) {
@@ -74,15 +77,25 @@ predict.mid <- function(
   for (i in seq_len(m)) {
     tags <- ltag[[i]]
     if (length(tags) == 1L) {
+      bmat <- object$main.effects[[tags]]$mid
       mmat <- object$encoders$main.effects[[tags]]$encode(newdata[, tags])
-      term_preds <- as.numeric(mmat %*% object$main.effects[[tags]]$mid)
+      term_preds <- mmat %*% bmat
       mmat <- NULL
     } else if (length(tags) == 2L) {
-      W <- matrix(
-        object$interactions[[terms[i]]]$mid,
-        nrow = ncol(imat[[tags[1L]]]), ncol = ncol(imat[[tags[2L]]])
-      )
-      term_preds <- rowSums((imat[[tags[1L]]] %*% W) * imat[[tags[2L]]])
+      bmat <- object$interactions[[terms[i]]]$mid
+      mat1 <- imat[[tags[1L]]]
+      mat2 <- imat[[tags[2L]]]
+      m1 <- ncol(mat1)
+      m2 <- ncol(mat2)
+      if (NCOL(bmat) == 1L) {
+        W <- matrix(as.numeric(bmat), nrow = m1, ncol = m2)
+        W[is.na(W)] <- 0
+        term_preds <- rowSums((mat1 %*% W) * mat2)
+      } else {
+        mat3 <- mat1[, rep(seq_len(m1), times = m2), drop = FALSE] *
+          mat2[, rep(seq_len(m2), each = m1), drop = FALSE]
+        term_preds <- mat3 %*% bmat
+      }
     }
     if (type == "terms") {
       preds[, i] <- term_preds
@@ -98,5 +111,24 @@ predict.mid <- function(
   if (inherits(naa, "exclude")) {
     preds <- stats::napredict(naa, preds)
   }
+  if (type != "terms" && ncol(preds) == 1L)
+    preds <- as.vector(preds)
   return(structure(preds, na.action = naa))
+}
+
+
+#' @rdname predict.mid
+#' @exportS3Method stats::predict
+#'
+predict.mids <- function(
+    object, ...
+) {
+  type <- list(...)$type
+  if (!is.null(type) && type == "terms") {
+    lapply(X = object, FUN = predict.mid, ...)
+  } else if (inherits(object, "midrib")) {
+    predict.mid(object, ...)
+  } else {
+    sapply(X = object, FUN = predict.mid, ...)
+  }
 }

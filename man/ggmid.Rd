@@ -4,7 +4,7 @@
 \alias{ggmid}
 \alias{ggmid.mid}
 \alias{autoplot.mid}
-\title{Plot MID Component Functions with ggplot2}
+\title{Plot MID Component Function with ggplot2}
 \usage{
 ggmid(object, ...)
 
@@ -17,8 +17,9 @@ ggmid(object, ...)
   main.effects = FALSE,
   data = NULL,
   limits = c(NA, NA),
-  jitter = 0.3,
+  jitter = NULL,
   resolution = c(100L, 100L),
+  lumped = TRUE,
   ...
 )
 
@@ -46,6 +47,8 @@ ggmid(object, ...)
 \item{jitter}{a numeric value specifying the amount of jitter for the data points.}
 
 \item{resolution}{an integer or vector of two integers specifying the resolution of the raster plot for interactions.}
+
+\item{lumped}{logical. If \code{TRUE}, uses the lumped factor levels; if \code{FALSE}, uses the original levels from the data. Always \code{FALSE} when \code{main.effects = TRUE}.}
 }
 \value{
 \code{ggmid.mid()} returns a "ggplot" object.
@@ -83,5 +86,5 @@ ggmid(mid, "carat:clarity", type = "compound", data = diamonds[idx, ])
 ggmid(mid, "clarity:color", theme = "RdBu")
 }
 \seealso{
-\code{\link{interpret}}, \code{\link{ggmid.mid.importance}}, \code{\link{ggmid.mid.conditional}}, \code{\link{ggmid.mid.breakdown}}, \code{\link{plot.mid}}
+\code{\link{interpret}}, \code{\link{ggmid.midimp}}, \code{\link{ggmid.midcon}}, \code{\link{ggmid.midbrk}}, \code{\link{plot.mid}}
 }

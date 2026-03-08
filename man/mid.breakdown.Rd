@@ -2,7 +2,7 @@
 % Please edit documentation in R/mid_breakdown.R
 \name{mid.breakdown}
 \alias{mid.breakdown}
-\title{Calculate MID Breakdowns}
+\title{Calculate MID Breakdown}
 \usage{
 mid.breakdown(object, data = NULL, row = NULL, sort = TRUE)
 }
@@ -16,42 +16,39 @@ mid.breakdown(object, data = NULL, row = NULL, sort = TRUE)
 \item{sort}{logical. If \code{TRUE}, the output data frame is sorted by the absolute contribution of each effect.}
 }
 \value{
-\code{mid.breakdown()} returns an object of class "mid.breakdown". This is a list with the following components:
+\code{mid.breakdown()} returns an object of class "midbrk". This is a list with the following components:
 \item{breakdown}{a data frame containing the breakdown of the prediction.}
 \item{data}{the data frame containing the predictor variable values used for the prediction.}
 \item{intercept}{the intercept of the MID model.}
 \item{prediction}{the predicted value from the MID model.}
+
+For a "mids" collection object, \code{mid.breakdown()} returns a collection object of class "midbrks"-"midlist".
 }
 \description{
 \code{mid.breakdown()} calculates the contribution of each component function of a fitted MID model to a single prediction.
 It breaks down the total prediction into the effects of the intercept, main effects, and interactions.
 }
 \details{
-\code{mid.breakdown()} is a method for local interpretability.
-For a given observation, it provides a clear answer to the question, "How much did each component of the MID model contribute to the final prediction?"
+This function provides local interpretability for a specific observation by decomposing its prediction into the individual contributions of the MID components.
+For a target observation \eqn{\mathbf{x}}, the total prediction is represented as the sum of all estimated terms:
 
-The function calculates the value of each term in the MID model's additive structure for the specified observation.
-The total prediction is the sum of these individual contributions.
-The prediction, denoted \eqn{\mathcal{F}(\mathbf{x})}, is decomposed as:
-\deqn{\mathcal{F}(\mathbf{x}) = f_\phi + \sum_{j} f_{j}(x_j) + \sum_{j<k} f_{jk}(x_j, x_k)}
+\deqn{g(\mathbf{x}) = g_\emptyset + \sum_{j} g_j(x_j) + \sum_{j<k} g_{jk}(x_j, x_k)}
 
-The output data frame itemizes the numerical value of each main effect
-(\eqn{f_{j}(x_j)}) and interaction effect (\eqn{f_{jk}(x_j, x_k)}),
-along with the intercept (\eqn{f_\phi}). This makes the prediction transparent
-and easy to understand.
+The output data frame itemizes the numerical value of each main effect \eqn{g_j(x_j)} and interaction effect \eqn{g_{jk}(x_j, x_k)}, along with the intercept \eqn{g_\emptyset}.
+This decomposition makes the model's decision for a single instance fully transparent and easy to attribute to specific features or their combinations.
 }
 \examples{
 data(airquality, package = "datasets")
 mid <- interpret(Ozone ~ .^2, data = airquality, lambda = 1)
 
 # Calculate the breakdown for the first observation in the data
-mbd <- mid.breakdown(mid, data = airquality, row = 1)
-print(mbd)
+brk <- mid.breakdown(mid, data = airquality, row = 1)
+print(brk)
 
 # Calculate the breakdown for the third observation in the data
-mbd <- mid.breakdown(mid, data = airquality, row = 3)
-print(mbd)
+brk <- mid.breakdown(mid, data = airquality, row = 3)
+print(brk)
 }
 \seealso{
-\code{\link{interpret}}, \code{\link{plot.mid.breakdown}}, \code{\link{ggmid.mid.breakdown}}
+\code{\link{interpret}}, \code{\link{plot.midbrk}}, \code{\link{ggmid.midbrk}}
 }

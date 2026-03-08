@@ -1,0 +1,142 @@
+#' Compare MID Component Functions with ggplot2
+#'
+#' @description
+#' For "mids" collection objects, \code{ggmid()} visualizes and compares a single main effect across multiple models.
+#'
+#' @details
+#' This is an S3 method for the \code{ggmid()} generic that evaluates the specified \code{term} over a grid of values and compares the results across all models in the collection.
+#'
+#' The \code{type} argument controls the visualization style.
+#' The default, \code{type = "effect"}, plots the component functions of the specified \code{term} for each model individually.
+#' The \code{type = "series"} option transposes the view to plot the effect trend over the models for each feature value.
+#'
+#' Note: Comparative plotting for interaction terms (2D surfaces) is not supported for collection objects.
+#'
+#' @param object a "mids" collection object to be visualized.
+#' @param term a character string specifying the main effect to evaluate.
+#' @param type the plotting style: "effect" plots the effect curve per model, while "series" plots the effect trend over models per feature value.
+#' @param theme a character string or object defining the color theme. See \code{\link{color.theme}} for details.
+#' @param intercept logical. If \code{TRUE}, the model intercept is added to the component effect.
+#' @param limits a numeric vector of length two specifying the limits of the plotting scale. \code{NA} values are replaced by the minimum and/or maximum MID values.
+#' @param resolution an integer specifying the number of evaluation points for continuous variables.
+#' @param labels an optional numeric or character vector to specify the model labels. Defaults to \code{labels(object)}. The function attempts to parse these labels into numeric values where possible.
+#' @param ... optional parameters passed to the main layer (e.g., \code{linewidth}, \code{alpha}).
+#'
+#' @examples
+#' # Use a lightweight dataset for fast execution
+#' data(mtcars, package = "datasets")
+#'
+#' # Fit two models with different complexities
+#' fit1 <- lm(mpg ~ wt, data = mtcars)
+#' mid1 <- interpret(mpg ~ wt, data = mtcars, model = fit1)
+#' fit2 <- lm(mpg ~ wt + hp, data = mtcars)
+#' mid2 <- interpret(mpg ~ wt + hp, data = mtcars, model = fit2)
+#'
+#' # Combine them into a "midlist" collection (which inherits from "mids")
+#' mids <- midlist("wt" = mid1, "wt + hp" = mid2)
+#'
+#' # Compare the main effect of 'wt' across both models
+#' ggmid(mids, term = "wt")
+#'
+#' # Compare the effect of 'wt' as a series plot across the models
+#' ggmid(mids, term = "wt", type = "series")
+#' @returns
+#' \code{ggmid.mids()} returns a "ggplot" object.
+#'
+#' @seealso \code{\link{ggmid}}, \code{\link{plot.mids}}
+#'
+#' @exportS3Method midr::ggmid
+#'
+ggmid.mids <- function(
+    object, term, type = c("effect", "series"), theme = NULL, intercept = FALSE,
+    limits = c(NA, NA), resolution = NULL, labels = base::labels(object), ...
+) {
+  tags <- term.split(term)
+  term <- term.check(term, mid.terms(object), stop = TRUE)
+  if (length(tags) > 1L) {
+    message("comparative plotting for interaction terms is not supported")
+    return(invisible(NULL))
+  }
+  type <- match.arg(type)
+  base <- as.list(object)[[1L]]
+  enc <- base$encoders$main.effects[[term]]
+  if (enc$type == "factor") {
+    xvals <- factor(enc$envir$olvs, levels = enc$envir$olvs)
+  } else {
+    rng <- range(base$main.effects[[term]][, term], na.rm = TRUE)
+    resolution <- resolution %||% (
+      if (type == "series") 25L else
+        min(max(1e4L %/% length(labels), 10L), 500L)
+    )
+    xvals <- seq(rng[1L], rng[2L], length.out = resolution)
+  }
+  fmat <- mid.effect(object, term = term, x = xvals)
+  if (intercept) {
+    ints <- vapply(as.list(object), `[[`, 0.0, "intercept")
+    fmat <- sweep(fmat, 2L, ints, "+")
+  }
+  n <- nrow(fmat)
+  m <- ncol(fmat)
+  if (length(labels) != m)
+    stop("length of 'labels' must match the number of models in the collection")
+  nums <- suppressWarnings(as.numeric(labels))
+  if (!anyNA(nums)) {
+    labels <- nums
+  } else if (!is.factor(labels)) {
+    labels <- factor(labels, levels = unique(labels))
+  }
+  df <- data.frame(
+    x = rep(xvals, times = m),
+    mid = as.vector(fmat),
+    label = rep(labels, each = n)
+  )
+  colnames(df)[1L] <- term
+  discrete <- is.discrete(labels)
+  if (type == "effect") {
+    theme <- theme %||% (
+      if (discrete) getOption("midr.qualitative", "HCL")
+      else getOption("midr.sequential", "bluescale")
+    )
+    theme <- color.theme(theme)
+    pl <- ggplot2::ggplot(
+      df, ggplot2::aes(x = .data[[term]], y = .data[["mid"]])
+    )
+    if (enc$type == "factor") {
+      pl <- pl + .geom_col(
+        ggplot2::aes(fill = .data[["label"]], group = factor(.data[["label"]])),
+        position = ggplot2::position_dodge(), ...
+      ) + scale_fill_theme(theme, discrete = discrete)
+    } else {
+      pl <- pl + .geom_line(
+        ggplot2::aes(color = .data[["label"]], group = .data[["label"]]), ...
+      ) + scale_color_theme(theme, discrete = discrete)
+    }
+  } else if (type == "series") {
+    theme <- theme %||% (
+      if (is.discrete(xvals)) getOption("midr.qualitative", "HCL")
+      else getOption("midr.sequential", "bluescale")
+    )
+    theme <- color.theme(theme)
+    pl <- ggplot2::ggplot(
+      df, ggplot2::aes(x = .data[["label"]], y = .data[["mid"]],
+                       color = .data[[term]], group = .data[[term]])
+    )
+    pl <- pl + if (discrete) .geom_linepoint(...) else .geom_line(...)
+    pl <- pl + ggplot2::labs(x = NULL) +
+      scale_color_theme(theme, discrete = is.discrete(xvals))
+  }
+  if (!is.null(limits)) {
+    pl <- pl + ggplot2::scale_y_continuous(limits = limits)
+  }
+  pl
+}
+
+
+#' @rdname ggmid.mids
+#' @exportS3Method ggplot2::autoplot
+autoplot.mids <- function(object, ...) {
+  mcall <- match.call(expand.dots = TRUE)
+  mcall[[1L]] <- quote(ggmid.mids)
+  mcall[["object"]] <- object
+  eval(mcall, parent.frame())
+}

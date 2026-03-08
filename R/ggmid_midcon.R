@@ -1,10 +1,10 @@
-#' Plot MID Conditional Expectations with ggplot2
+#' Plot MID Conditional Expectation with ggplot2
 #'
 #' @description
-#' For "mid.conditional" objects, \code{ggmid()} visualizes Individual Conditional Expectation (ICE) curves derived from a fitted MID model.
+#' For "midcon" objects, \code{ggmid()} visualizes Individual Conditional Expectation (ICE) curves derived from a fitted MID model.
 #'
 #' @details
-#' This is an S3 method for the \code{ggmid()} generic that produces ICE curves from a "mid.conditional" object.
+#' This is an S3 method for the \code{ggmid()} generic that produces ICE curves from a "midcon" object.
 #' ICE plots are a model-agnostic tool for visualizing how a model's prediction for a single observation changes as one feature varies.
 #' This function plots one line for each observation in the data.
 #'
@@ -14,7 +14,7 @@
 #'
 #' The \code{var.color}, \code{var.alpha}, etc., arguments allow you to map aesthetics to other variables in your data using (possibly) unquoted expressions.
 #'
-#' @param object a "mid.conditional" object to be visualized.
+#' @param object a "midcon" object to be visualized.
 #' @param type the plotting style. One of "iceplot" or "centered".
 #' @param theme a character string or object defining the color theme. See \code{\link{color.theme}} for details.
 #' @param term an optional character string specifying an interaction term. If passed, the ICE curve for the specified term is plotted.
@@ -23,13 +23,12 @@
 #' @param var.linetype a variable name or expression to map to the linetype aesthetic.
 #' @param var.linewidth a variable name or expression to map to the linewidth aesthetic.
 #' @param reference an integer specifying the index of the evaluation point to use as the reference for centering the c-ICE plot.
-#' @param dots logical. If \code{TRUE}, points representing the actual predictions for each observation are plotted.
+#' @param points logical. If \code{TRUE}, points representing the actual predictions for each observation are plotted.
 #' @param sample an optional vector specifying the names of observations to be plotted.
 #' @param ... optional parameters passed on to the main layer.
 #'
 #' @examples
 #' data(airquality, package = "datasets")
-#' library(midr)
 #' mid <- interpret(Ozone ~ .^2, airquality, lambda = 0.1)
 #' ice <- mid.conditional(mid, "Temp", data = airquality)
 #'
@@ -40,21 +39,20 @@
 #' ggmid(ice, type = "centered", theme = "Purple-Yellow",
 #'       var.color = factor(Month), var.linetype = Wind > 10)
 #' @returns
-#' \code{ggmid.mid.conditional()} returns a "ggplot" object.
+#' \code{ggmid.midcon()} returns a "ggplot" object.
 #'
-#' @seealso \code{\link{mid.conditional}}, \code{\link{ggmid}}, \code{\link{plot.mid.conditional}}
+#' @seealso \code{\link{mid.conditional}}, \code{\link{ggmid}}, \code{\link{plot.midcon}}
 #'
 #' @exportS3Method midr::ggmid
 #'
-ggmid.mid.conditional <- function(
+ggmid.midcon <- function(
     object, type = c("iceplot", "centered"), theme = NULL, term = NULL,
     var.alpha = NULL, var.color = NULL, var.linetype = NULL, var.linewidth = NULL,
-    reference = 1L, dots = TRUE, sample = NULL, ...) {
+    reference = 1L, points = TRUE, sample = NULL, ...) {
   type <- match.arg(type)
   theme <- color.theme(theme)
   use.theme <- inherits(theme, "color.theme")
-  variable <- attr(object, "variable")
-  n <- attr(object, "n")
+  variable <- object$variable
   obs <- object$observed
   con <- object$conditional
   values <- object$values
@@ -69,17 +67,20 @@ ggmid.mid.conditional <- function(
   }
   if (type == "centered") {
     if (reference < 0) reference <- length(values)
-    ref <- values[min(length(values), max(1L, reference))]
-    stp <- con[con[[variable]] == ref, yvar]
+    refval <- values[min(length(values), max(1L, reference))]
+    ref <- con[con[[variable]] == refval, , drop = FALSE]
     ynew <- paste0("centered ", yvar)
-    obs[, ynew] <- obs[, yvar] - stp
-    con[, ynew] <- con[, yvar] - stp
+    obs[, ynew] <- obs[, yvar] - ref[match(obs$.id, ref$.id), yvar]
+    con[, ynew] <- con[, yvar] - ref[match(con$.id, ref$.id), yvar]
     yvar <- ynew
   }
   if (!is.null(sample)) {
     obs <- obs[obs$.id %in% sample, ]
     con <- con[con$.id %in% sample, ]
-    n <- nrow(obs)
+  }
+  if (nrow(obs) == 0L) {
+    message("no observations found")
+    return(invisible(NULL))
   }
   pl <- ggplot2::ggplot(
     data = obs, ggplot2::aes(x = .data[[variable]], y = .data[[yvar]])
@@ -87,21 +88,21 @@ ggmid.mid.conditional <- function(
   if (!is.null(alp <- substitute(var.alpha))) {
     if (is.character(alp)) alp <- str2lang(alp)
     obs$.alp <- eval(alp, envir = obs)
-    con$.alp <- eval(alp, envir = con)
+    con <- merge(con, obs[, c(".id", ".alp")], by = ".id")
     pl <- pl + ggplot2::aes(alpha = .data[[".alp"]]) +
       ggplot2::labs(alpha = alp)
   }
   if (set.color <- !is.null(col <- substitute(var.color))) {
     if (is.character(col)) col <- str2lang(col)
     obs$.col <- eval(col, envir = obs)
-    con$.col <- eval(col, envir = con)
+    con <- merge(con, obs[, c(".id", ".col")], by = ".id")
     pl <- pl + ggplot2::aes(colour = .data[[".col"]]) +
       ggplot2::labs(colour = col)
   }
   if (!is.null(lty <- substitute(var.linetype))) {
     if (is.character(lty)) lty <- str2lang(lty)
     obs$.lty <- eval(lty, envir = obs)
-    con$.lty <- eval(lty, envir = con)
+    con <- merge(con, obs[, c(".id", ".lty")], by = ".id")
     pl <- pl + ggplot2::aes(linetype = .data[[".lty"]]) +
       ggplot2::labs(linetype = lty)
     if (!is.discrete(obs$.lty))
@@ -110,7 +111,7 @@ ggmid.mid.conditional <- function(
   if (!is.null(lwd <- substitute(var.linewidth))) {
     if (is.character(lwd)) lwd <- str2lang(lwd)
     obs$.lwd <- eval(lwd, envir = obs)
-    con$.lwd <- eval(lwd, envir = con)
+    con <- merge(con, obs[, c(".id", ".lwd")], by = ".id")
     pl <- pl + ggplot2::aes(linewidth = .data[[".lwd"]]) +
       ggplot2::labs(linewidth = lwd)
     if (is.discrete(obs$.lwd)) {
@@ -119,10 +120,11 @@ ggmid.mid.conditional <- function(
       pl <- pl + ggplot2::scale_linewidth_continuous(range = c(0, 1))
     }
   }
-  pl <- pl + ggplot2::geom_line(
-    data = con, mapping = ggplot2::aes(group = .data[[".id"]]), ...)
-  if (dots) {
-    pl <- pl + ggplot2::geom_point(data = obs)
+  pl <- pl + .geom_line(
+    mapping = ggplot2::aes(group = .data[[".id"]]), data = con, ...
+  )
+  if (points) {
+    pl <- pl + .geom_point(data = obs, ...)
   }
   if (set.color) {
     if (!use.theme)
@@ -135,13 +137,12 @@ ggmid.mid.conditional <- function(
   pl
 }
 
-
-#' @rdname ggmid.mid.conditional
+#' @rdname ggmid.midcon
 #' @exportS3Method ggplot2::autoplot
 #'
-autoplot.mid.conditional <- function(object, ...) {
+autoplot.midcon <- function(object, ...) {
   mcall <- match.call(expand.dots = TRUE)
-  mcall[[1L]] <- quote(midr::ggmid)
+  mcall[[1L]] <- quote(ggmid.midcon)
   mcall[["object"]] <- object
   eval(mcall, parent.frame())
 }

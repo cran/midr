@@ -43,15 +43,19 @@
 mid.terms <- function(
     object, main.effects = TRUE, interactions = TRUE,
     require = NULL, remove = NULL, ...) {
+  if (inherits(object, "midlist")) {
+    mcall <- match.call(expand.dots = TRUE)
+    mcall[[1L]] <- quote(mid.terms)
+    mcall[["object"]] <- object[[1L]]
+    return(eval(mcall, parent.frame()))
+  }
   dots <- list(...)
   if (missing(main.effects) && !is.null(dots$me))
     main.effects <- dots$me
   if (missing(interactions) && !is.null(dots$ie))
     interactions <- dots$ie
-  terms <- ifnot.null(
-    attr(ifnot.null(object$terms, attr(object, "terms")), "term.labels"),
-    attr(object, "term.labels")
-  )
+  terms <- attr(object$terms %||% attr(object, "terms"), "term.labels")
+  terms <- terms %||% attr(object, "term.labels")
   if (!main.effects)
     terms <- terms[grepl(":", terms)]
   if (!interactions)
@@ -75,15 +79,15 @@ labels.mid <- function(object, ...)
 
 #' @exportS3Method base::labels
 #'
-labels.mid.importance <- function(object, ...)
+labels.midimp <- function(object, ...)
   mid.terms(object = object, ...)
 
 #' @exportS3Method base::labels
 #'
-labels.mid.breakdown <- function(object, ...)
+labels.midbrk <- function(object, ...)
   mid.terms(object = object, ...)
 
 #' @exportS3Method base::labels
 #'
-labels.mid.conditional <- function(object, ...)
+labels.midcon <- function(object, ...)
   mid.terms(object = object, ...)

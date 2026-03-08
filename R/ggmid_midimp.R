@@ -1,10 +1,10 @@
 #' Plot MID Importance with ggplot2
 #'
 #' @description
-#' For "mid.importance" objects, \code{ggmid()} visualizes the importance of component functions of the fitted MID model.
+#' For "midimp" objects, \code{ggmid()} visualizes the importance of component functions of the fitted MID model.
 #'
 #' @details
-#' This is an S3 method for the \code{ggmid()} generic that creates an importance plot from a "mid.importance" object, visualizing the average contribution of component functions to the fitted MID model.
+#' This is an S3 method for the \code{ggmid()} generic that creates an importance plot from a "midimp" object, visualizing the average contribution of component functions to the fitted MID model.
 #'
 #' The \code{type} argument controls the visualization style.
 #' The default, \code{type = "barplot"}, creates a standard bar plot where the length of each bar represents the overall importance of the term.
@@ -12,7 +12,7 @@
 #' The \code{type = "heatmap"} option creates a matrix-shaped heat map where the color of each cell represents the importance of the interaction between a pair of variables, or the main effect on the diagonal.
 #' The \code{type = "boxplot"} option creates a box plot where each box shows the distribution of a term's contributions across all observations, providing insight into the variability of each term's effect.
 #'
-#' @param object a "mid.importance" object to be visualized.
+#' @param object a "midimp" object to be visualized.
 #' @param type the plotting style. One of "barplot", "dotchart", "heatmap", or "boxplot".
 #' @param theme a character string or object defining the color theme. See \code{\link{color.theme}} for details.
 #' @param terms an optional character vector specifying which terms to display.
@@ -38,13 +38,13 @@
 #' # Create a boxplot to see the distribution of effects
 #' ggmid(imp, type = "boxplot")
 #' @returns
-#' \code{ggmid.mid.importance()} returns a "ggplot" object.
+#' \code{ggmid.midimp()} returns a "ggplot" object.
 #'
-#' @seealso \code{\link{mid.importance}}, \code{\link{ggmid}}, \code{\link{plot.mid.importance}}
+#' @seealso \code{\link{mid.importance}}, \code{\link{ggmid}}, \code{\link{plot.midimp}}
 #'
 #' @exportS3Method midr::ggmid
 #'
-ggmid.mid.importance <- function(
+ggmid.midimp <- function(
     object, type = c("barplot", "dotchart", "heatmap", "boxplot"),
     theme = NULL, terms = NULL, max.nterms = 30L, ...) {
   type <- match.arg(type)
@@ -56,25 +56,24 @@ ggmid.mid.importance <- function(
   if (!is.null(terms))
     imp <- imp[match(terms, imp$term, nomatch = 0L), ]
   if (type != "heatmap")
-    imp <- imp[1L:min(max.nterms, nrow(imp), na.rm = TRUE), ]
+    imp <- utils::head(imp, max.nterms)
+  imp$term <- factor(imp$term, levels = rev(imp$term))
   # barplot and dotchart
   if (type == "barplot" || type == "dotchart") {
     pl <- ggplot2::ggplot(
       imp, ggplot2::aes(x = .data[["importance"]], y = .data[["term"]])
       ) + ggplot2::labs(y = NULL)
     if (type == "barplot") {
-      pl <- pl + ggplot2::geom_col(...)
+      pl <- pl + .geom_col(...)
       if (use.theme) {
         var <- if (theme$type == "qualitative") "order" else "importance"
         pl <- pl + ggplot2::aes(fill = .data[[var]]) +
           scale_fill_theme(theme = theme)
       }
     } else if (type == "dotchart") {
-      tli <- ggplot2::theme_get()$line
-      pl <- pl + ggplot2::geom_linerange(color = ifnot.null(tli$colour, "black"),
-        linewidth = ifnot.null(tli$linewidth, 0.5), linetype = 3L,
-        ggplot2::aes(xmin = 0, xmax = .data[["importance"]])) +
-        ggplot2::geom_point(...)
+      pl <- pl + .geom_dotchart(
+        mapping = ggplot2::aes(xmin = 0, xmax = .data[["importance"]]), ...
+      )
       if (use.theme) {
         var <- if (theme$type == "qualitative") "order" else "importance"
         pl <- pl + ggplot2::aes(color = .data[[var]]) +
@@ -89,29 +88,37 @@ ggmid.mid.importance <- function(
     ftag <- sapply(spt, function(x) x[1L])
     stag <- sapply(spt, function(x) x[2L])
     stag <- ifelse(is.na(stag), ftag, stag)
-    levs <- unique(spt)
+    levs <- unique(unlist(spt))
     fr <- data.frame(x = factor(c(stag, ftag), levels = levs),
                      y = factor(c(ftag, stag), levels = levs),
                      importance = rep.int(imp$importance, 2L))
     fr <- unique(fr)
-    pl <- ggplot2::ggplot(data = fr,
-      ggplot2::aes(.data[["x"]], .data[["y"]], fill = .data[["importance"]])) +
-      ggplot2::labs(x = NULL, y = NULL) +
-      ggplot2::geom_tile(...)
+    pl <- ggplot2::ggplot(
+      data = fr,
+      ggplot2::aes(
+        x = .data[["x"]], y = .data[["y"]], fill = .data[["importance"]]
+      )
+    ) +
+      ggplot2::labs(x = NULL, y = NULL)
+    pl <- pl + .geom_tile(...)
     pl <- pl + scale_fill_theme(theme = if (use.theme) theme else "grayscale")
     return(pl)
   # boxplot
   } else if (type == "boxplot") {
     terms <- as.character(imp$term)
     preds <- object$predictions
-    preds_vec <- unlist(lapply(terms, function(term) preds[, term]))
+    preds_vec <- as.numeric(preds[, terms, drop = FALSE])
     terms <- factor(terms, levels = rev(terms))
     box <- data.frame(mid = preds_vec, term = rep(terms, each = nrow(preds)))
-    pl <- ggplot2::ggplot(box) + ggplot2::geom_boxplot(
-        ggplot2::aes(x = .data[["mid"]], y = .data[["term"]]), ...
+    pl <- ggplot2::ggplot(box) +
+      .geom_boxplot(
+        mapping = ggplot2::aes(x = .data[["mid"]], y = .data[["term"]]), ...
       )
     if (use.theme) {
-      pl$data <- merge(box, imp, by = "term", all.x = TRUE)
+      idx <- match(box$term, imp$term)
+      box$importance <- imp$importance[idx]
+      if ("order" %in% names(imp)) box$order <- imp$order[idx]
+      pl$data <- box
       var <- if (theme$type == "qualitative") "order" else "importance"
       pl <- pl + ggplot2::aes(fill = .data[[var]], group = .data[["term"]]) +
         scale_fill_theme(theme = theme)
@@ -122,9 +129,12 @@ ggmid.mid.importance <- function(
 }
 
 
-#' @rdname ggmid.mid.importance
+#' @rdname ggmid.midimp
 #' @exportS3Method ggplot2::autoplot
 #'
-autoplot.mid.importance <- function(object, ...) {
-  ggmid.mid.importance(object = object, ...)
+autoplot.midimp <- function(object, ...) {
+  mcall <- match.call(expand.dots = TRUE)
+  mcall[[1L]] <- quote(ggmid.midimp)
+  mcall[["object"]] <- object
+  eval(mcall, parent.frame())
 }

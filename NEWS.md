@@ -1,3 +1,33 @@
+# midr 0.6.0
+
+-   Implemented collection objects such as "midlist" and "midrib", along with manipulation functions like `midlist()`, and corresponding visualization functions. This enables the comparison of multiple interpretation models, as well as the interpretation of survival models and multi-class classification models.
+-   Renamed long class names to shorter abbreviations ("mid.importance" to "midimp", "mid.breakdown" to "midbrk", and "mid.conditional" to "midcon").
+
+# midr 0.5.3.904
+
+-   Fixed memory issues in `get.link()` and added support for parametric link functions (including Box-Cox, Yeo-Johnson, Robit, and Scobit).
+
+# midr 0.5.3.903
+
+-   Multivariate Response Support: `interpret()` now accepts a matrix for the response variable `y`, allowing for simultaneous modeling of multiple responses.
+-   Introduction of "midlist": Implemented the "midlist" class to handle multiple MID models efficiently. Methods such as `predict()` and `mid.effect()` have been vectorized to handle "midlist" objects using optimized matrix operations.
+-   Performance Optimization: Significant reduction in compilation time and binary size by removing the heavy dependency on **RcppEigen** headers for the core Laplacian smoothing algorithm.
+
+# midr 0.5.3.902
+
+-   The `digits` argument of `interpret()` now defaults to `NULL`.
+-   `get.yhat()` has new method for `workflow` objects.
+
+# midr 0.5.3.901
+
+-   Updated `interpret()` and encoder generators to enhance the variable encoding functionality, introducing new arguments: `split` for numeric variables and `lump` for factor variables.
+-   The `catchall` and `encoding.digits` arguments are renamed to `others` and `digits`; the `use.catchall` argument is deprecated.
+
+# midr 0.5.3.900
+
+-   Fixed incorrect calculation in `interpret()` when `singular.ok = TRUE` (or, more directly, `weighted.norm = TRUE`) and `lambda > 0`.
+-   Modified weights calculation to enhance the numerical stability.
+
 # midr 0.5.3
 
 Fourth release on CRAN. This version introduces significant memory efficiency improvements for large-scale data analysis.

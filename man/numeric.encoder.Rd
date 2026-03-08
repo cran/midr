@@ -8,18 +8,19 @@
 numeric.encoder(
   x,
   k,
-  type = 1L,
-  encoding.digits = NULL,
-  tag = "x",
+  type = c("linear", "constant", "null"),
+  split = c("quantile", "uniform"),
+  digits = NULL,
+  weights = NULL,
   frame = NULL,
-  weights = NULL
+  tag = "x"
 )
 
 numeric.frame(
   reps = NULL,
   breaks = NULL,
   type = NULL,
-  encoding.digits = NULL,
+  digits = NULL,
   tag = "x"
 )
 }
@@ -28,15 +29,17 @@ numeric.frame(
 
 \item{k}{an integer specifying the coarseness of the encoding. If not positive, all unique values of \code{x} are used as knots or bins.}
 
-\item{type}{an integer (\code{1} or \code{0}) specifying the encoding method (see the "details" section).}
+\item{type}{a character string or an integer specifying the encoding method: \code{"linear"} / \code{1} (default) or \code{"constant"} / \code{0}.}
 
-\item{encoding.digits}{an integer specifying the rounding digits for the piecewise linear encoding (\code{type = 1}).}
+\item{split}{a character string specifying the splitting strategy: \code{"quantile"} (default) creates bins/knots based on data density; \code{"uniform"} creates equally spaced bins/knots over the data range.}
 
-\item{tag}{the name of the variable.}
-
-\item{frame}{a "numeric.frame" object or a numeric vector that explicitly defines the knots or breakes for the encoding.}
+\item{digits}{an integer specifying the rounding digits for the piecewise linear encoding (\code{type = "linear"}).}
 
 \item{weights}{an optional numeric vector of sample weights for \code{x}.}
+
+\item{frame}{a "numeric.frame" object or a numeric vector that explicitly defines the knots or breaks for the encoding.}
+
+\item{tag}{the name of the variable.}
 
 \item{reps}{a numeric vector to be used as the representative values (knots).}
 
@@ -45,9 +48,11 @@ numeric.frame(
 \value{
 \code{numeric.encoder()} returns an object of class "encoder". This is a list containing the following components:
 \item{frame}{a "numeric.frame" object containing the encoding information.}
-\item{encode}{a function to convert a numeric vector \code{x} into a dummy matrix.}
 \item{n}{the number of encoding levels (i.e., columns in the design matrix).}
 \item{type}{a character string describing the encoding type: "linear", "constant", or "null".}
+\item{envir}{an environment for the \code{transform} and \code{encode} functions.}
+\item{transform}{a function \code{transform(x, ...)} (identity by default).}
+\item{encode}{a function \code{encode(x, ...)} that converts a numeric vector into a dummy matrix.}
 
 \code{numeric.frame()} returns a "numeric.frame" object containing the encoding information.
 }

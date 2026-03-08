@@ -33,7 +33,7 @@ kernel.env <- rlang::env(rlang::ns_env("midr"))
     name = "bicolor", source = "midr", type = "diverging",
     kernel = c(text = "function(x, first, second) ifelse(x <= 0.5, first, second)",
                namespace = "base"),
-    kernel.args = list(first = "#6A0DAD", second = "#00A0A0")
+    kernel.args = list(first = "steelblue", second = "maroon")
   )
   set.color.theme(
     name = "highlight", source = "midr", type = "qualitative",
@@ -109,7 +109,7 @@ kernel.env <- rlang::env(rlang::ns_env("midr"))
       set.color.theme(
         name = x, source = "viridisLite", type = "sequential",
         kernel = c(text = "viridis", namespace = "viridisLite"),
-        kernel.args = list(option = x, alpha = 1, begin = 0, end = 1, direction = 1),
+        kernel.args = list(option = x, alpha = 1, begin = 0.2, end = 0.8, direction = 1),
         options = list(
           kernel.size = Inf,
           reverse.method = "kernel.args$direction <- - kernel.args$direction"
@@ -140,11 +140,13 @@ kernel.env <- rlang::env(rlang::ns_env("midr"))
         name = x, source = "khroma", type = info[i, 2L],
         kernel = c(text = sprintf("color(palette = '%s')", x),
                    namespace = "khroma"),
-        kernel.args = list(range = c(0, 1)),
+        kernel.args = list(range = c(0.0, 1.0)),
         options = list(kernel.size = info[i, 3L],
                        na.color = info[i, 4L])
       )
     }
   }
+  # shapviz --------
+  s3register_shapviz.mid()
   invisible(NULL)
 }
